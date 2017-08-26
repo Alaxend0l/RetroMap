@@ -62,6 +62,7 @@ namespace RetroMap
         List<int> MenuOptionsLocations;
         List<string>[] MenuSystemLoad;
         List<string> MenuResolutionDisplay;
+        List<DisplayMode> MenuDisplayMode;
         bool MenuReset;
         string[] MenuEntriesDraw; //Menu strings to be drawn on-screen
         string[] MenuEntriesAccess; //Menu strings to be manipulated before being drawn
@@ -114,9 +115,11 @@ namespace RetroMap
             MenuStorageIntStatic = new int[10, 255, 255];
             MenuSystemLoad = new List<string>[Systems.Length];
             MenuResolutionDisplay = new List<string>();
+            MenuDisplayMode = new List<DisplayMode>();
             foreach (DisplayMode mode in GraphicsAdapter.DefaultAdapter.SupportedDisplayModes)
             {
                 MenuResolutionDisplay.Add(mode.ToString());
+                MenuDisplayMode.Add(mode);
             }
             for (CX = 0; CX < Systems.Length; CX++)
             {
@@ -327,6 +330,24 @@ namespace RetroMap
                 else if (MenuEntriesType[EntrySelection] == 3)
                 {
                     Exit();
+                }
+                else if (MenuEntriesType[EntrySelection] == 5)
+                {
+                    if (SectionSelection == 0 && MenuSelection == 4 && EntrySelection == 0)
+                    {
+                        Vector3 IntPosition = MenuEntriesIntPosition[0];
+                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
+                        graphics.PreferredBackBufferWidth = MenuDisplayMode[IntStatic].Width;
+                        graphics.PreferredBackBufferHeight = MenuDisplayMode[IntStatic].Height;
+                        graphics.ApplyChanges();
+                    }
+                    else if (SectionSelection == 0 && MenuSelection == 4 && EntrySelection == 1)
+                    {
+                        Vector3 IntPosition = MenuEntriesIntPosition[0];
+                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
+                        if (IntStatic == 0 && graphics.IsFullScreen || IntStatic == 1 && !graphics.IsFullScreen)
+                            graphics.ToggleFullScreen();
+                    }
                 }
             }
             if (BackPressed == 1)
@@ -553,9 +574,8 @@ namespace RetroMap
                     }
                     else if (CY == 4)
                     {
-                        if (CZ == 0) EntryOption("Resolution: ", 1, new Vector3(0, 1, 0), 0, MenuResolutionDisplay.Count);
+                        if (CZ == 0) EntryOption("Resolution: ", 1, new Vector3(0, 1, 0), 0, MenuResolutionDisplay.Count - 1);
                         else if (CZ == 1) EntryOption("Screen Mode: ", 1, new Vector3(0, 1, 1), 0, 2);
-                        else if (CZ == 2) EntryOption("Framerate: ", 1, new Vector3(0, 1, 2), 0, 144);
                         else MenuEnd();
                     }
                     else MenuEnd();
