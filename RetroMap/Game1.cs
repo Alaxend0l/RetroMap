@@ -530,15 +530,6 @@ namespace RetroMap
                         if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), 1, new Vector3(0, 0, CZ), 0, Emulators.Length - 1);
                         else MenuEnd();
                     }
-                    else if (CY == 4)
-                    {
-                        if (CZ == 0) EntrySetup("Link Test", 0, 0, false, true);
-                        else if (CZ == 1) EntryProgram("Open Fusion With Sonic 1.gen", RootEmulators + @"Fusion364\Fusion.exe", RootRoms + @"GEN\Sonic1.gen", "<FILE>");
-                        else if (CZ == 2) EntryProgram("Open FCEUX With Super Mario Bros.nes", RootEmulators + @"fceux-2.2.3-win32\fceux.exe", RootRoms + @"NES\SuperMarioBros.nes", "<FILE>");
-                        else if (CZ == 3) EntryProgram("Open Notepad With Test.txt", @"C:\Windows\notepad.exe", @"C:\Users\Alec Jakopin\Downloads\Test.txt", "<PROG> <FILE>");
-                        else if (CZ == 4) EntryProgram("Open Notepad With Test.txt", @"C:\Windows\notepad.exe", @"C:\Users\Alec Jakopin\Downloads\Test.txt", "<PROG> <FILE>");
-                        else MenuEnd();
-                    }
                     else if (CY == 5)
                     {
                         if (CZ == 0) EntrySetup("Graphics Settings", 0, 6, false, true);
