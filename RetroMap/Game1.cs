@@ -516,8 +516,15 @@ namespace RetroMap
                     {
                         if (CZ == 0) EntrySetup("Console Select", 0, 2, false, true);
                         else if (CZ == 1) EntrySetup("Emulator Select", 0, 3, false, true);
-                        else if (CZ == 2) EntrySetup("Settings", 0, 5, false, true);
+                        else if (CZ == 2) EntrySetup("Settings", 0, 1, false, true);
                         else if (CZ == 3) EntryExit("Exit");
+                        else MenuEnd();
+                    }
+                    else if (CY == 1)
+                    {
+                        if (CZ == 0) EntrySetup("Graphics Settings", 0, 4, false, true);
+                        else if (CZ == 1) EntrySetup("Audio Settings", 0, 5, false, true);
+                        else if (CZ == 2) EntrySetup("Control Settings", 0, 6, false, true);
                         else MenuEnd();
                     }
                     else if (CY == 2)
@@ -528,13 +535,6 @@ namespace RetroMap
                     else if (CY == 3)
                     {
                         if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), 1, new Vector3(0, 0, CZ), 0, Emulators.Length - 1);
-                        else MenuEnd();
-                    }
-                    else if (CY == 5)
-                    {
-                        if (CZ == 0) EntrySetup("Graphics Settings", 0, 6, false, true);
-                        else if (CZ == 1) EntrySetup("Audio Settings", 0, 7, false, true);
-                        else if (CZ == 2) EntrySetup("Control Settings", 0, 8, false, true);
                         else MenuEnd();
                     }
                     else MenuEnd();
