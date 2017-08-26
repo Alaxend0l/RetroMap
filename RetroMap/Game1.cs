@@ -61,6 +61,7 @@ namespace RetroMap
         string[,] MenuOptionsString;
         List<int> MenuOptionsLocations;
         List<string>[] MenuSystemLoad;
+        List<string> MenuResolutionDisplay;
         bool MenuReset;
         string[] MenuEntriesDraw; //Menu strings to be drawn on-screen
         string[] MenuEntriesAccess; //Menu strings to be manipulated before being drawn
@@ -112,6 +113,11 @@ namespace RetroMap
             Directory.CreateDirectory(RootConfigSystems);
             MenuStorageIntStatic = new int[10, 255, 255];
             MenuSystemLoad = new List<string>[Systems.Length];
+            MenuResolutionDisplay = new List<string>();
+            foreach (DisplayMode mode in GraphicsAdapter.DefaultAdapter.SupportedDisplayModes)
+            {
+                MenuResolutionDisplay.Add(mode.ToString());
+            }
             for (CX = 0; CX < Systems.Length; CX++)
             {
                 MenuSystemLoad[CX] = new List<string>();
@@ -419,10 +425,10 @@ namespace RetroMap
                 MenuEntriesDraw[i] += MenuEntriesAccess[i];
                 if (MenuEntriesType[i] == 5)
                 {
+                    Vector3 IntPosition = MenuEntriesIntPosition[i];
+                    int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
                     if (SectionSelection == 0 && MenuSelection == 3)
                     {
-                        Vector3 IntPosition = MenuEntriesIntPosition[i];
-                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
                         if (IntStatic < Emulators.Length)
                         {
                             MenuEntriesDraw[i] += " | " + Emulators[IntStatic].Replace(RootEmulators, "");
@@ -438,6 +444,14 @@ namespace RetroMap
                                 MenuEntriesDraw[i] += " | Error: Emulator # is too high!";
                             }
                         }
+                    }
+                    else if (SectionSelection == 0 && MenuSelection == 4 && i == 0)
+                    {
+                        MenuEntriesDraw[i] += " | " + MenuResolutionDisplay[IntStatic];
+                    }
+                    else
+                    {
+                        MenuEntriesDraw[i] += " | " + IntStatic;
                     }
                 }
                 spriteBatch.DrawString(font, MenuEntriesDraw[i], new Vector2(0, GraphicsDevice.Viewport.Height / 2 + i * 18 - EntrySelection * 18), Color.White);
@@ -535,6 +549,13 @@ namespace RetroMap
                     else if (CY == 3)
                     {
                         if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), 1, new Vector3(0, 0, CZ), 0, Emulators.Length - 1);
+                        else MenuEnd();
+                    }
+                    else if (CY == 4)
+                    {
+                        if (CZ == 0) EntryOption("Resolution: ", 1, new Vector3(0, 1, 0), 0, MenuResolutionDisplay.Count);
+                        else if (CZ == 1) EntryOption("Screen Mode: ", 1, new Vector3(0, 1, 1), 0, 2);
+                        else if (CZ == 2) EntryOption("Framerate: ", 1, new Vector3(0, 1, 2), 0, 144);
                         else MenuEnd();
                     }
                     else MenuEnd();
