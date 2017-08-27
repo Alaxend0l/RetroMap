@@ -17,17 +17,21 @@ namespace RetroMap
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
         SpriteFont font;
-        Texture2D square;
+        Texture2D background;
         bool DebugMode;
         string Root;
         string RootConfig;
         string RootEmulators;
         string RootRoms;
+        string RootBackgrounds;
         string RootConfigSystems;
         string[] Systems;
         string[] Emulators;
         string[] EmulatorExes;
+        string[] Backgrounds;
         int[] SystemEmulator;
+        int CurrentWidth;
+        int CurrentHeight;
         int MaxSections;
         int MaxMenus;
         int MaxEntries;
@@ -104,15 +108,18 @@ namespace RetroMap
             RootConfig = Root + @"Config\";
             RootEmulators = Root + @"Emulators\";
             RootRoms = Root + @"Roms\";
+            RootBackgrounds = Root + @"Backgrounds\";
             RootConfigSystems = RootConfig + @"Systems\";
             Directory.CreateDirectory(Root);
             Directory.CreateDirectory(RootConfig);
             Directory.CreateDirectory(RootEmulators);
             Directory.CreateDirectory(RootRoms);
+            Directory.CreateDirectory(RootBackgrounds);
             Directory.CreateDirectory(RootConfigSystems);
             Systems = Directory.GetDirectories(RootRoms);
             Emulators = Directory.GetDirectories(RootEmulators);
             EmulatorExes = new string[Emulators.Length];
+            Backgrounds = Directory.GetFiles(RootBackgrounds);
             MenuStorageIntStatic = new int[10, 255, 255];
             MenuSystemLoad = new List<string>[Systems.Length];
             MenuResolutionDisplay = new List<string>();
@@ -180,9 +187,11 @@ namespace RetroMap
             {
                 List<string> VideoStorage = new List<string>();
                 VideoStorage = ReadFromFile(RootConfig + @"\Video.txt");
-                MenuStorageIntStatic[0, 1, 0] = Int32.Parse(VideoStorage[0]);
-                MenuStorageIntStatic[0, 1, 1] = Int32.Parse(VideoStorage[1]);
-                ApplyGraphics(MenuDisplayMode[Int32.Parse(VideoStorage[0])].Width, MenuDisplayMode[Int32.Parse(VideoStorage[0])].Height, Int32.Parse(VideoStorage[1]));
+                int c = 0;
+                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 1, 0] = 0; c++;
+                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 1, 1] = 2; c++;
+                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 1, 2] = 0; c++;
+                ApplyGraphics(MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Width, MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Height, MenuStorageIntStatic[0, 1, 1]);
             }
             else
             {
@@ -192,8 +201,10 @@ namespace RetroMap
                 b++;
                 VideoStorage.Add(b.ToString());
                 VideoStorage.Add(2.ToString());
+                VideoStorage.Add(0.ToString());
                 MenuStorageIntStatic[0, 1, 0] = b;
                 MenuStorageIntStatic[0, 1, 1] = 2;
+                MenuStorageIntStatic[0, 1, 2] = 0;
                 ApplyGraphics(MenuDisplayMode[b].Width, MenuDisplayMode[b].Height, 2);
                 WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
             }
@@ -364,9 +375,12 @@ namespace RetroMap
                         IntPosition = MenuEntriesIntPosition[1];
                         int IntStatic2 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
                         ApplyGraphics(MenuDisplayMode[IntStatic].Width, MenuDisplayMode[IntStatic].Height, IntStatic2);
+                        IntPosition = MenuEntriesIntPosition[2];
+                        int IntStatic3 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
                         List<string> VideoStorage = new List<string>();
                         VideoStorage.Add(IntStatic.ToString());
                         VideoStorage.Add(IntStatic2.ToString());
+                        VideoStorage.Add(IntStatic3.ToString());
                         WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
                     }
                 }
@@ -455,6 +469,7 @@ namespace RetroMap
         {
             GraphicsDevice.Clear(new Color(0f, 0f, 0f, 1f));
             spriteBatch.Begin();
+            spriteBatch.Draw(background, new Rectangle(0, 0, CurrentWidth, CurrentHeight), Color.White);
             var fps = 1 / gameTime.ElapsedGameTime.TotalSeconds;
             Window.Title = fps.ToString();
             for (int i = 0; i < MenuTotalEntries[SectionSelection, MenuSelection]; i++)
@@ -494,6 +509,17 @@ namespace RetroMap
                     else if (SectionSelection == 0 && MenuSelection == 4 && i == 1)
                     {
                         MenuEntriesDraw[i] += "" + MenuWindowMode[IntStatic];
+                    }
+                    else if (SectionSelection == 0 && MenuSelection == 4 && i == 2)
+                    {
+                        if (IntStatic == 0)
+                        {
+                            MenuEntriesDraw[i] += "" + "Empty Background";
+                        }
+                        else
+                        {
+                            MenuEntriesDraw[i] += "" + Backgrounds[IntStatic-1].Replace(RootBackgrounds, "");
+                        }
                     }
                     else
                     {
@@ -561,6 +587,8 @@ namespace RetroMap
         {
             graphics.PreferredBackBufferWidth = Width;
             graphics.PreferredBackBufferHeight = Height;
+            CurrentWidth = Width;
+            CurrentHeight = Height;
             if (WindowMode == 1)
             {
                 graphics.IsFullScreen = true;
@@ -578,6 +606,26 @@ namespace RetroMap
                 }
             }
             graphics.ApplyChanges();
+            CreateBackground(MenuStorageIntStatic[0, 1, 2]);
+        }
+        void CreateBackground(int BackgroundID)
+        {
+            if (BackgroundID == 0)
+            {
+                background = new Texture2D(GraphicsDevice, CurrentWidth, CurrentHeight);
+                Color[] data = new Color[CurrentWidth * CurrentHeight];
+                for (int pixel = 0; pixel < data.Length; pixel++)
+                {
+                    data[pixel] = Color.Black;
+                }
+                background.SetData(data);
+            }
+            else if (Backgrounds.Length >= BackgroundID)
+            {
+                FileStream fileStream = new FileStream(Backgrounds[BackgroundID-1], FileMode.Open);
+                background = Texture2D.FromStream(GraphicsDevice, fileStream);
+                fileStream.Dispose();
+            }
         }
         void RebuildMenu(int X, int Y)
         {
@@ -623,7 +671,7 @@ namespace RetroMap
                     {
                         if (CZ == 0) EntryOption("Resolution: ", 1, new Vector3(0, 1, 0), 0, MenuResolutionDisplay.Count - 1);
                         else if (CZ == 1) EntryOption("Screen Mode: ", 1, new Vector3(0, 1, 1), 0, 2);
-                        else if (CZ == 2) EntryOption("Current Theme: ", 1, new Vector3(0, 1, 2), 0, 1);
+                        else if (CZ == 2) EntryOption("Current Background: ", 1, new Vector3(0, 1, 2), 0, Backgrounds.Length);
                         else MenuEnd();
                     }
                     else MenuEnd();
