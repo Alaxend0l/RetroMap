@@ -174,6 +174,27 @@ namespace RetroMap
                 }
                 CX++;
             }
+            if (File.Exists(RootConfig + @"\Video.txt"))
+            {
+                List<string> VideoStorage = new List<string>();
+                VideoStorage = ReadFromFile(RootConfig + @"\Video.txt");
+                MenuStorageIntStatic[0, 1, 0] = Int32.Parse(VideoStorage[0]);
+                MenuStorageIntStatic[0, 1, 1] = Int32.Parse(VideoStorage[1]);
+                ApplyGraphics(MenuDisplayMode[Int32.Parse(VideoStorage[0])].Width, MenuDisplayMode[Int32.Parse(VideoStorage[0])].Height, Int32.Parse(VideoStorage[1]));
+            }
+            else
+            {
+                List<string> VideoStorage = new List<string>();
+                int b = 0;
+                while (MenuDisplayMode[b].Width != 1280 && MenuDisplayMode[b].Height != 720 && MenuDisplayMode.Count != b) b++;
+                b++;
+                VideoStorage.Add(b.ToString());
+                VideoStorage.Add(2.ToString());
+                MenuStorageIntStatic[0, 1, 0] = b;
+                MenuStorageIntStatic[0, 1, 1] = 2;
+                ApplyGraphics(MenuDisplayMode[b].Width, MenuDisplayMode[b].Height, 2);
+                WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
+            }
             if (DebugMode) MenuSelection = 0; else MenuSelection = 1;
             HoldThreshold = 0.3f;
             HoldReducePerClick = 0.05f;
@@ -333,20 +354,17 @@ namespace RetroMap
                 }
                 else if (MenuEntriesType[EntrySelection] == 5)
                 {
-                    if (SectionSelection == 0 && MenuSelection == 4 && EntrySelection == 0)
+                    if (SectionSelection == 0 && MenuSelection == 4)
                     {
                         Vector3 IntPosition = MenuEntriesIntPosition[0];
                         int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        graphics.PreferredBackBufferWidth = MenuDisplayMode[IntStatic].Width;
-                        graphics.PreferredBackBufferHeight = MenuDisplayMode[IntStatic].Height;
-                        graphics.ApplyChanges();
-                    }
-                    else if (SectionSelection == 0 && MenuSelection == 4 && EntrySelection == 1)
-                    {
-                        Vector3 IntPosition = MenuEntriesIntPosition[0];
-                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        if (IntStatic == 0 && graphics.IsFullScreen || IntStatic == 1 && !graphics.IsFullScreen)
-                            graphics.ToggleFullScreen();
+                        IntPosition = MenuEntriesIntPosition[1];
+                        int IntStatic2 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
+                        ApplyGraphics(MenuDisplayMode[IntStatic].Width, MenuDisplayMode[IntStatic].Height, IntStatic2);
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage.Add(IntStatic.ToString());
+                        VideoStorage.Add(IntStatic2.ToString());
+                        WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
                     }
                 }
             }
@@ -531,6 +549,28 @@ namespace RetroMap
                     return 0;
                 }
             }
+        }
+        void ApplyGraphics(int Width, int Height, int WindowMode)
+        {
+            graphics.PreferredBackBufferWidth = Width;
+            graphics.PreferredBackBufferHeight = Height;
+            if (WindowMode == 1)
+            {
+                graphics.IsFullScreen = true;
+            }
+            else
+            {
+                graphics.IsFullScreen = false;
+                if (WindowMode == 0)
+                {
+                    Window.IsBorderless = false;
+                }
+                else
+                {
+                    Window.IsBorderless = true;
+                }
+            }
+            graphics.ApplyChanges();
         }
         void RebuildMenu(int X, int Y)
         {
