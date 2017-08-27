@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Win32;
 using System.Collections.Generic;
 using System;
 using System.IO;
@@ -191,6 +192,7 @@ namespace RetroMap
                 if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 1, 0] = 0; c++;
                 if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 1, 1] = 2; c++;
                 if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 1, 2] = 0; c++;
+                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 3] = Int32.Parse(VideoStorage[3]); else MenuStorageIntStatic[0, 1, 3] = 12; c++;
                 ApplyGraphics(MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Width, MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Height, MenuStorageIntStatic[0, 1, 1]);
             }
             else
@@ -205,6 +207,7 @@ namespace RetroMap
                 MenuStorageIntStatic[0, 1, 0] = b;
                 MenuStorageIntStatic[0, 1, 1] = 2;
                 MenuStorageIntStatic[0, 1, 2] = 0;
+                MenuStorageIntStatic[0, 1, 3] = 12;
                 ApplyGraphics(MenuDisplayMode[b].Width, MenuDisplayMode[b].Height, 2);
                 WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
             }
@@ -377,10 +380,13 @@ namespace RetroMap
                         ApplyGraphics(MenuDisplayMode[IntStatic].Width, MenuDisplayMode[IntStatic].Height, IntStatic2);
                         IntPosition = MenuEntriesIntPosition[2];
                         int IntStatic3 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
+                        IntPosition = MenuEntriesIntPosition[3];
+                        int IntStatic4 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
                         List<string> VideoStorage = new List<string>();
                         VideoStorage.Add(IntStatic.ToString());
                         VideoStorage.Add(IntStatic2.ToString());
                         VideoStorage.Add(IntStatic3.ToString());
+                        VideoStorage.Add(IntStatic4.ToString());
                         WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
                     }
                 }
@@ -516,9 +522,13 @@ namespace RetroMap
                         {
                             MenuEntriesDraw[i] += "" + "Empty Background";
                         }
+                        else if (IntStatic == 1)
+                        {
+                            MenuEntriesDraw[i] += "" + "Current Desktop Background";
+                        }
                         else
                         {
-                            MenuEntriesDraw[i] += "" + Backgrounds[IntStatic-1].Replace(RootBackgrounds, "");
+                            MenuEntriesDraw[i] += "" + Backgrounds[IntStatic-2].Replace(RootBackgrounds, "");
                         }
                     }
                     else
@@ -526,7 +536,7 @@ namespace RetroMap
                         MenuEntriesDraw[i] += " " + IntStatic;
                     }
                 }
-                spriteBatch.DrawString(font, MenuEntriesDraw[i], new Vector2(0, GraphicsDevice.Viewport.Height / 2 + i * 18 - EntrySelection * 18), Color.White);
+                spriteBatch.DrawString(font, MenuEntriesDraw[i], new Vector2(0, GraphicsDevice.Viewport.Height / 2 + i * (MenuStorageIntStatic[0, 1, 3]/2*3) - EntrySelection * (MenuStorageIntStatic[0, 1, 3] / 2 * 3)), Color.White, 0f, Vector2.Zero, new Vector2((float)MenuStorageIntStatic[0, 1, 3]/72, (float)MenuStorageIntStatic[0, 1, 3]/72), SpriteEffects.None, 0f);
             }
             spriteBatch.End();
             base.Draw(gameTime);
@@ -620,9 +630,22 @@ namespace RetroMap
                 }
                 background.SetData(data);
             }
-            else if (Backgrounds.Length >= BackgroundID)
+            else if (BackgroundID == 1)
             {
-                FileStream fileStream = new FileStream(Backgrounds[BackgroundID-1], FileMode.Open);
+                string pathWallpaper = "";
+                RegistryKey regKey = Registry.CurrentUser.OpenSubKey("Control Panel\\Desktop", false);
+                if (regKey != null)
+                {
+                    pathWallpaper = regKey.GetValue("WallPaper").ToString();
+                    regKey.Close();
+                }
+                FileStream fileStream = new FileStream(pathWallpaper, FileMode.Open);
+                background = Texture2D.FromStream(GraphicsDevice, fileStream);
+                fileStream.Dispose();
+            }
+            else if (Backgrounds.Length+1 >= BackgroundID)
+            {
+                FileStream fileStream = new FileStream(Backgrounds[BackgroundID-2], FileMode.Open);
                 background = Texture2D.FromStream(GraphicsDevice, fileStream);
                 fileStream.Dispose();
             }
@@ -671,7 +694,8 @@ namespace RetroMap
                     {
                         if (CZ == 0) EntryOption("Resolution: ", 1, new Vector3(0, 1, 0), 0, MenuResolutionDisplay.Count - 1);
                         else if (CZ == 1) EntryOption("Screen Mode: ", 1, new Vector3(0, 1, 1), 0, 2);
-                        else if (CZ == 2) EntryOption("Current Background: ", 1, new Vector3(0, 1, 2), 0, Backgrounds.Length);
+                        else if (CZ == 2) EntryOption("Current Background: ", 1, new Vector3(0, 1, 2), 0, Backgrounds.Length + 1);
+                        else if (CZ == 3) EntryOption("Font Size: ", 1, new Vector3(0, 1, 3), 12, 72);
                         else MenuEnd();
                     }
                     else MenuEnd();
