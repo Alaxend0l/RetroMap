@@ -247,6 +247,7 @@ namespace RetroMap
         }
         protected override void Update(GameTime gameTime)
         {
+            //This is the beginning
             GamePadCapabilities capabilities = GamePad.GetCapabilities(PlayerIndex.One);
             if (capabilities.IsConnected)
             {
