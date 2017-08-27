@@ -105,14 +105,14 @@ namespace RetroMap
             RootEmulators = Root + @"Emulators\";
             RootRoms = Root + @"Roms\";
             RootConfigSystems = RootConfig + @"Systems\";
-            Systems = Directory.GetDirectories(RootRoms);
-            Emulators = Directory.GetDirectories(RootEmulators);
-            EmulatorExes = new string[Emulators.Length];
             Directory.CreateDirectory(Root);
             Directory.CreateDirectory(RootConfig);
             Directory.CreateDirectory(RootEmulators);
             Directory.CreateDirectory(RootRoms);
             Directory.CreateDirectory(RootConfigSystems);
+            Systems = Directory.GetDirectories(RootRoms);
+            Emulators = Directory.GetDirectories(RootEmulators);
+            EmulatorExes = new string[Emulators.Length];
             MenuStorageIntStatic = new int[10, 255, 255];
             MenuSystemLoad = new List<string>[Systems.Length];
             MenuResolutionDisplay = new List<string>();
