@@ -623,6 +623,7 @@ namespace RetroMap
                     {
                         if (CZ == 0) EntryOption("Resolution: ", 1, new Vector3(0, 1, 0), 0, MenuResolutionDisplay.Count - 1);
                         else if (CZ == 1) EntryOption("Screen Mode: ", 1, new Vector3(0, 1, 1), 0, 2);
+                        else if (CZ == 2) EntryOption("Current Theme: ", 1, new Vector3(0, 1, 2), 0, 1);
                         else MenuEnd();
                     }
                     else MenuEnd();
