@@ -74,16 +74,22 @@ namespace RetroMap
         List<string> MenuWindowMode;
         List<DisplayMode> MenuDisplayMode;
         bool MenuReset;
+        int ExplorerPurpose;
+        string ExplorerString;
+        int ExplorerLastEntry;
+        Vector3 ExplorerLocation;
         string[] MenuEntriesDraw; //Menu strings to be drawn on-screen
         string[] MenuEntriesAccess; //Menu strings to be manipulated before being drawn
         string[] MenuEntriesProgram; //Strings for program entries to use to open programs
         string[] MenuEntriesFile; //Strings for program entries to use to open files within programs
         string[] MenuEntriesCommand; //Strings for program entries to use to as commands
+        int[] MenuEntriesPurpose;
         int[] MenuEntriesType; //Types of entries. 0: Link, 1: Option, 2: Open Program
         int[] MenuEntriesDestinationSection; //Entry destination when clicked (Section)
         int[] MenuEntriesDestinationMenu; //Entry destination when clicked (Menu)
         int[] MenuEntriesIntOptionSegment;
         Vector3[] MenuEntriesIntPosition;
+        Vector3[] MenuEntriesStringPosition;
         int[] MenuEntriesIntMinimum;
         int[] MenuEntriesIntMaximum;
         bool[] MenuEntriesLocked; //Whether or not the menu entry is currently restricted
@@ -91,7 +97,7 @@ namespace RetroMap
         bool[] MenuEntriesShowModel; //Whether or not the entry shows a model
 
         int[,,] MenuStorageIntStatic;
-        string[,,] MenuStorageString;
+        string[,,] MenuStorageStringStatic;
 
         int CX;
         int CY;
@@ -111,21 +117,26 @@ namespace RetroMap
             DebugMode = true;
             Root = @"C:\RetroMap\";
             RootConfig = Root + @"Config\";
-            RootEmulators = Root + @"Emulators\";
-            RootRoms = Root + @"Roms\";
-            RootBackgrounds = Root + @"Backgrounds\";
             RootConfigSystems = RootConfig + @"Systems\";
             Directory.CreateDirectory(Root);
             Directory.CreateDirectory(RootConfig);
+            Directory.CreateDirectory(RootConfigSystems);
+            RootEmulators = Root + @"Emulators\";
+            RootRoms = Root + @"Roms\";
+            RootBackgrounds = Root + @"Backgrounds\";
             Directory.CreateDirectory(RootEmulators);
             Directory.CreateDirectory(RootRoms);
             Directory.CreateDirectory(RootBackgrounds);
-            Directory.CreateDirectory(RootConfigSystems);
             Systems = Directory.GetDirectories(RootRoms);
             Emulators = Directory.GetDirectories(RootEmulators);
             EmulatorExes = new string[Emulators.Length];
             Backgrounds = Directory.GetFiles(RootBackgrounds);
+            MaxSections = 16;
+            MaxMenus = 64;
+            MaxEntries = 65535;
+            MaxStorage = 10000;
             MenuStorageIntStatic = new int[1, 255, 255];
+            MenuStorageStringStatic = new string[1, 255, 255];
             MenuSystemLoad = new List<string>[Systems.Length];
             MenuResolutionDisplay = new List<string>();
             MenuDisplayMode = new List<DisplayMode>();
@@ -256,13 +267,9 @@ namespace RetroMap
             HoldThreshold = 0.3f;
             HoldReducePerClick = 0.05f;
             EntrySelection = 0;
-            MaxSections = 16;
-            MaxMenus = 64;
-            MaxEntries = 256;
-            MaxStorage = 10000;
             ChangePrepared = true;
-            SectionPast = new int[10000];
-            MenuPast = new int[10000];
+            SectionPast = new int[100];
+            MenuPast = new int[100];
             EntryAccess = new int[MaxEntries];
             MenuTotalEntries = new int[MaxSections, MaxMenus];
             MenuTitles = new string[MaxSections, MaxMenus];
@@ -274,6 +281,7 @@ namespace RetroMap
             MenuEntriesProgram = new string[MaxEntries];
             MenuEntriesFile = new string[MaxEntries];
             MenuEntriesCommand = new string[MaxEntries];
+            MenuEntriesPurpose = new int[MaxEntries];
             MenuEntriesType = new int[MaxEntries];
             MenuEntriesDestinationSection = new int[MaxEntries];
             MenuEntriesDestinationMenu = new int[MaxEntries];
@@ -284,6 +292,7 @@ namespace RetroMap
             MenuEntriesIntPosition = new Vector3[MaxEntries];
             MenuEntriesIntMinimum = new int[MaxEntries];
             MenuEntriesIntMaximum = new int[MaxEntries];
+            MenuEntriesStringPosition = new Vector3[MaxEntries];
             MenuOptionsLocations = new List<int>();
             RebuildMenu(SectionSelection, MenuSelection);
         }
@@ -393,6 +402,41 @@ namespace RetroMap
                     }
                     MenuOptionsSave[SectionSelection, MenuSelection] = true;
                 }
+                if (MenuEntriesType[EntrySelection] == 9 || MenuEntriesType[EntrySelection] == 10)
+                {
+                    if (ExplorerString != "")
+                    {
+                        if (ParentDirectoryExists(ExplorerString))
+                        {
+                            string[] ParentDirectories = Directory.GetDirectories(Directory.GetParent(ExplorerString).FullName);
+                            for (int i = 0; i < ParentDirectories.Length; i++)
+                            {
+                                if (ParentDirectories[i] == ExplorerString)
+                                {
+                                    EntrySelection = i;
+                                }
+                            }
+                            ExplorerString = Directory.GetParent(ExplorerString).FullName;
+                            ChangePrepared = true;
+                        }
+                        else
+                        {
+                            ExplorerString = "";
+                            EntrySelection = 0;
+                            ChangePrepared = true;
+                        }
+                    }
+                    else
+                    {
+                        SectionLast = SectionSelection;
+                        MenuLast = MenuSelection;
+                        MenuDepth--;
+                        SectionSelection = SectionPast[MenuDepth];
+                        MenuSelection = MenuPast[MenuDepth];
+                        EntrySelection = EntryAccess[MenuDepth];
+                        ChangePrepared = true;
+                    }
+                }
             }
             if (RightPressed == 1)
             {
@@ -413,6 +457,13 @@ namespace RetroMap
                     }
                     MenuOptionsSave[SectionSelection, MenuSelection] = true;
                 }
+                if (MenuEntriesType[EntrySelection] == 9)
+                {
+                    ExplorerString = MenuEntriesAccess[EntrySelection];
+                    ExplorerLastEntry = EntrySelection;
+                    EntrySelection = 0;
+                    ChangePrepared = true;
+                }
             }
             if (ConfirmPressed == 1)
             {
@@ -424,8 +475,6 @@ namespace RetroMap
                     MenuLast = MenuSelection;
                     EntryAccess[MenuDepth] = EntrySelection;
                     MenuDepth++;
-                    int SectionLoad = SectionSelection;
-                    int MenuLoad = MenuSelection;
                     SectionSelection = MenuEntriesDestinationSection[EntrySelection];
                     MenuSelection = MenuEntriesDestinationMenu[EntrySelection];
                     EntrySelection = 0;
@@ -474,6 +523,37 @@ namespace RetroMap
                         VideoStorage.Add(IntStatic4.ToString());
                         WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
                     }
+                }
+                else if (MenuEntriesType[EntrySelection] == 8)
+                {
+                    SectionPast[MenuDepth] = SectionSelection;
+                    MenuPast[MenuDepth] = MenuSelection;
+                    SectionLast = SectionSelection;
+                    MenuLast = MenuSelection;
+                    EntryAccess[MenuDepth] = EntrySelection;
+                    ExplorerPurpose = MenuEntriesPurpose[EntrySelection];
+                    ExplorerString = MenuEntriesFile[EntrySelection];
+                    ExplorerLocation = MenuEntriesStringPosition[EntrySelection];
+                    MenuDepth++;
+                    SectionSelection = 2;
+                    MenuSelection = 0;
+                    EntrySelection = 0;
+                    if (ExplorerString != "")
+                    {
+                        EntrySelection = 1;
+                    }
+                    ChangePrepared = true;
+                }
+                else if (MenuEntriesType[EntrySelection] == 9 && ExplorerPurpose == 0 || MenuEntriesType[EntrySelection] == 10 && ExplorerPurpose == 1)
+                {
+                    MenuStorageStringStatic[(int)ExplorerLocation.X, (int)ExplorerLocation.Y, (int)ExplorerLocation.Z] = MenuEntriesAccess[EntrySelection];
+                    SectionLast = SectionSelection;
+                    MenuLast = MenuSelection;
+                    MenuDepth--;
+                    SectionSelection = SectionPast[MenuDepth];
+                    MenuSelection = MenuPast[MenuDepth];
+                    EntrySelection = EntryAccess[MenuDepth];
+                    ChangePrepared = true;
                 }
             }
             if (BackPressed == 1)
@@ -591,6 +671,18 @@ namespace RetroMap
             spriteBatch.Draw(background, new Rectangle(0, 0, CurrentWidth, CurrentHeight), Color.White);
             var fps = 1 / gameTime.ElapsedGameTime.TotalSeconds;
             Window.Title = fps.ToString();
+            spriteBatch.End();
+            if (false)
+            {
+                Matrix matrix = Matrix.CreateRotationX(MathHelper.ToRadians(70)) *
+                Matrix.CreateRotationY(MathHelper.ToRadians(0)) *
+                Matrix.CreateScale(1, 1, 0);
+
+                spriteBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, null, matrix);
+                spriteBatch.Draw(background, new Rectangle(0, 0, CurrentWidth * 1, CurrentHeight * 1), Color.White);
+                spriteBatch.End();
+            }
+            spriteBatch.Begin();
             for (int i = 0; i < MenuTotalEntries[SectionSelection, MenuSelection]; i++)
             {
                 MenuEntriesDraw[i] = "";
@@ -664,14 +756,23 @@ namespace RetroMap
                         MenuEntriesDraw[i] += "" + IntStatic;
                     }
                 }
+                if (MenuEntriesType[i] == 8 || MenuEntriesType[i] == 11)
+                {
+                    Vector3 StrPosition = MenuEntriesStringPosition[i];
+                    string StrStatic = MenuStorageStringStatic[(int)StrPosition.X, (int)StrPosition.Y, (int)StrPosition.Z];
+                    MenuEntriesDraw[i] += "" + StrStatic;
+                }
                 float TextOrigin = CurrentHeight / 2;
                 float TextListY = i * TextSpread;
                 float TextEntryY = EntrySelection * TextSpread;
                 float TextFinalY = TextListY - TextEntryY;
                 float TextX = 0;
                 float TextY = TextOrigin + TextFinalY + TextOffset;
-                Vector2 TextPosition = new Vector2(TextX, TextY);
-                DrawString(font, MenuEntriesDraw[i], TextPosition, 0, 0, Color.White);
+                if (TextY > (-TextSpread) && TextY < CurrentHeight+TextSpread)
+                {
+                    Vector2 TextPosition = new Vector2(TextX, TextY);
+                    DrawString(font, MenuEntriesDraw[i], TextPosition, 0, 0, Color.White);
+                }
             }
             DrawString(font, TimeString, new Vector2(CurrentWidth, 0), 2, 0, Color.White);
             spriteBatch.End();
@@ -786,80 +887,128 @@ namespace RetroMap
                 fileStream.Dispose();
             }
         }
+
         void RebuildMenu(int X, int Y)
         {
             CX = X;
             CY = Y;
+            CZ = 0;
             MenuOptionsLocations.Clear();
             if (CX == 0)
             {
-                if (CY == 0) MenuSetup("Debug Menu", "");
-                else if (CY == 1) MenuSetup("Exit?", "");
-                else if (CY == 2) MenuSetup("Systems", "");
-                else if (CY == 3) MenuSetup("Emulators", "");
-                else if (CY == 4) MenuSetup("Testing", "");
-                else MenuSetup("Placeholder", "");
-                for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++)
+                switch (CY)
                 {
-                    if (CY == 0)
-                    {
-                        if (CZ == 0) EntrySetup("Console Select", 0, 2, false, true);
-                        else if (CZ == 1) EntrySetup("Emulator Select", 0, 3, false, true);
-                        else if (CZ == 2) EntrySetup("Settings", 0, 1, false, true);
-                        else if (CZ == 3) EntryExit("Exit");
-                        else MenuEnd();
-                    }
-                    else if (CY == 1)
-                    {
-                        if (CZ == 0) EntrySetup("Graphics Settings", 0, 4, false, true);
-                        else if (CZ == 1) EntrySetup("Menu Settings", 0, 7, false, true);
-                        else if (CZ == 2) EntrySetup("Audio Settings", 0, 5, false, true);
-                        else if (CZ == 3) EntrySetup("Control Settings", 0, 6, false, true);
-                        else MenuEnd();
-                    }
-                    else if (CY == 2)
-                    {
-                        if (CZ < Systems.Length) EntrySetup(Systems[CZ].Replace(RootRoms, ""), 1, CZ, false, true);
-                        else MenuEnd();
-                    }
-                    else if (CY == 3)
-                    {
-                        if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), 1, new Vector3(0, 0, CZ), 2, 0, Emulators.Length - 1);
-                        else MenuEnd();
-                    }
-                    else if (CY == 4)
-                    {
-                        if (CZ == 0) EntryOption("Resolution: ", 1, new Vector3(0, 1, 0), 2, 0, MenuResolutionDisplay.Count - 1);
-                        else if (CZ == 1) EntryOption("Screen Mode: ", 1, new Vector3(0, 1, 1), 2, 0, 2);
-                        else if (CZ == 2) EntryOption("Current Background: ", 1, new Vector3(0, 1, 2), 2, 0, Backgrounds.Length + 1);
-                        else if (CZ == 3) EntryOption("Font Size: ", 1, new Vector3(0, 1, 3), 0, 12, 72);
-                        else MenuEnd();
-                    }
-                    else if (CY == 7)
-                    {
-                        if (CZ == 0) EntrySetup("Clock Settings", 0, 8, false, true);
-                        else if (CZ == 1) EntrySetup("Slide Settings", 0, 9, false, true);
-                        else MenuEnd();
-                    }
-                    else if (CY == 8)
-                    {
-                        if (CZ == 0) EntryOption("Clock Toggle: ", 1, new Vector3(0, 2, 0), 1, 0, 1);
-                        else if (CZ == 1) EntryOption("Clock Mode: ", 1, new Vector3(0, 2, 1), 2, 0, 1);
-                        else if (CZ == 2) EntryOption("Clock Seconds: ", 1, new Vector3(0, 2, 2), 1, 0, 1);
-                        else MenuEnd();
-                    }
-                    else if (CY == 9)
-                    {
-                        if (CZ == 0) EntryOption("Slide Toggle: ", 1, new Vector3(0, 3, 0), 1, 0, 1);
-                        else if (CZ == 1) EntryOption("Slide Speed: ", 1, new Vector3(0, 3, 1), 0, 0, 30);
-                        else MenuEnd();
-                    }
-                    else MenuEnd();
+                    case 0:
+                        MenuSetup("Debug Menu");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        {
+                            default: MenuEnd(); break;
+                            case 0: EntryLink("Console Select", 0, 2, false, true); break;
+                            case 1: EntryLink("Emulator Select", 0, 3, false, true); break;
+                            case 2: EntryLink("Settings", 0, 1, false, true); break;
+                            case 3: EntryExit("Exit"); break;
+                        }
+                        break;
+                    case 1:
+                        MenuSetup("Settings Menu");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        {
+                            default: MenuEnd(); break;
+                            case 0: EntryLink("Graphics Settings", 0, 4, false, true); break;
+                            case 1: EntryLink("Menu Settings", 0, 7, false, true); break;
+                        }
+                        break;
+                    case 2:
+                        MenuSetup("Systems Menu");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        {
+                            default: if (CZ < Systems.Length) EntryLink(Systems[CZ].Replace(RootRoms, ""), 1, CZ, false, true); else MenuEnd(); break;
+                        }
+                        break;
+                    case 3:
+                        MenuSetup("Emulators Menu");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), 1, new Vector3(0, 0, CZ), 2, 0, Emulators.Length - 1); else MenuEnd(); break;
+                            }
+                        break;
+                    case 4:
+                        MenuSetup("");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryOption("Resolution: ", 1, new Vector3(0, 1, 0), 2, 0, MenuResolutionDisplay.Count - 1); break;
+                                case 1: EntryOption("Screen Mode: ", 1, new Vector3(0, 1, 1), 2, 0, 2); break;
+                                case 2: EntryOption("Current Background: ", 1, new Vector3(0, 1, 2), 2, 0, Backgrounds.Length + 1); break;
+                                case 3: EntryOption("Font Size: ", 1, new Vector3(0, 1, 3), 0, 12, 72); break;
+                            }
+                        break;
+                    case 5:
+                        MenuSetup("Audio");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 6:
+                        MenuSetup("Controls");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 7:
+                        MenuSetup("Options");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryLink("Clock Settings", 0, 8, false, true); break;
+                                case 1: EntryLink("Slide Settings", 0, 9, false, true); break;
+                                case 2: EntryLink("Audio Settings", 0, 5, false, true); break;
+                                case 3: EntryLink("Control Settings", 0, 6, false, true); break;
+                                case 4: EntryLink("Developer Debug Stuff", 0, 10, false, true); break;
+                            }
+                        break;
+                    case 8:
+                        MenuSetup("Clock");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryOption("Clock Toggle: ", 1, new Vector3(0, 2, 0), 1, 0, 1); break;
+                                case 1: EntryOption("Clock Mode: ", 1, new Vector3(0, 2, 1), 2, 0, 1); break;
+                                case 2: EntryOption("Clock Seconds: ", 1, new Vector3(0, 2, 2), 1, 0, 1); break;
+                            }
+                        break;
+                    case 9:
+                        MenuSetup("Slide");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryOption("Slide Toggle: ", 1, new Vector3(0, 3, 0), 1, 0, 1); break;
+                                case 1: EntryOption("Slide Speed: ", 1, new Vector3(0, 3, 1), 0, 0, 30); break;
+                            }
+                        break;
+                    case 10:
+                        MenuSetup("Debug Functions");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryExplorer("File Explorer Test, Folder. Result: ", "", 0, new Vector3(0, 0, 0)); break;
+                                case 1: EntryExplorer("File Explorer Test, File. Result: ", "", 1, new Vector3(0, 0, 1)); break;
+                            }
+                        break;
+                    default:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
                 }
             }
             else if (CX == 1)
             {
-                MenuSetup(Systems[CY], "");
+                MenuSetup(Systems[CY]);
                 string[] SystemsGames = Directory.GetFiles(Systems[CY]);
                 int SystemsGamesAmount = SystemsGames.Length;
                 for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++)
@@ -868,13 +1017,57 @@ namespace RetroMap
                     else MenuEnd();
                 }
             }
+            else if (CX == 2)
+            {
+                if (ExplorerString == "")
+                {
+                    MenuSetup("File Explorer");
+                    DriveInfo[] allDrives = DriveInfo.GetDrives();
+                    foreach (DriveInfo d in allDrives)
+                    {
+                        if (d.IsReady == true)
+                        {
+                            string ExplorerEntryTemp = d.Name;
+                            EntryExplorerFolder(ExplorerEntryTemp);
+                            CZ++;
+                        }
+                    }
+                    MenuEnd();
+                }
+                else
+                {
+                    string[] ExplorerDirectories = Directory.GetDirectories(ExplorerString);
+                    string[] ExplorerFiles = Directory.GetFiles(ExplorerString);
+                    int TotalSlots = ExplorerDirectories.Length + ExplorerFiles.Length;
+                    MenuSetup("Directory Explorer");
+                    if (TotalSlots == 0)
+                    {
+                        MenuEnd();
+                    }
+                    else
+                    {
+                        for (CZ = 0; CZ < TotalSlots; CZ++)
+                        {
+                            if (CZ < ExplorerDirectories.Length)
+                            {
+                                EntryExplorerFolder(ExplorerDirectories[CZ]);
+                            }
+                            else
+                            {
+                                EntryExplorerFile(ExplorerFiles[CZ - ExplorerDirectories.Length]);
+                            }
+                        }
+                        MenuEnd();
+                    }
+                }
+            }
             base.Initialize();
         }
-        void MenuSetup(string MenuTitle, string OptionsString)
+
+        void MenuSetup(string MenuTitle)
         {
             MenuTitles[CX, CY] = MenuTitle;
             MenuTotalEntries[CX, CY] = MaxEntries;
-            MenuOptionsString[CX, CY] = OptionsString;
         }
         void MenuEnd()
         {
@@ -888,7 +1081,8 @@ namespace RetroMap
                 MenuTotalEntries[CX, CY] = CZ;
             }
         }
-        void EntrySetup(string EntryString, int SectionDestination, int MenuDestination, bool Locked, bool Future)
+
+        void EntryLink(string EntryString, int SectionDestination, int MenuDestination, bool Locked, bool Future)
         {
             MenuEntriesAccess[CZ] = EntryString;
             MenuEntriesDestinationMenu[CZ] = MenuDestination;
@@ -971,6 +1165,39 @@ namespace RetroMap
                 MenuEntriesIntMaximum[CZ] = MaximumIntAllowed;
             }
         }
+        void EntryExplorer(string EntryString, string StartingDirectory, int Purpose, Vector3 Location)
+        {
+            MenuEntriesAccess[CZ] = EntryString;
+            MenuEntriesLocked[CZ] = false;
+            MenuEntriesShowFuture[CZ] = false;
+            MenuEntriesType[CZ] = 8;
+            MenuEntriesFile[CZ] = StartingDirectory;
+            MenuEntriesPurpose[CZ] = Purpose;
+            MenuEntriesStringPosition[CZ] = Location;
+        }
+        void EntryExplorerFolder(string EntryString)
+        {
+            MenuEntriesAccess[CZ] = EntryString;
+            MenuEntriesLocked[CZ] = false;
+            MenuEntriesShowFuture[CZ] = false;
+            MenuEntriesType[CZ] = 9;
+        }
+        void EntryExplorerFile(string EntryString)
+        {
+            MenuEntriesAccess[CZ] = EntryString;
+            MenuEntriesLocked[CZ] = false;
+            MenuEntriesShowFuture[CZ] = false;
+            MenuEntriesType[CZ] = 10;
+        }
+        void EntryString(string EntryString, Vector3 Location)
+        {
+            MenuEntriesAccess[CZ] = EntryString;
+            MenuEntriesLocked[CZ] = false;
+            MenuEntriesShowFuture[CZ] = false;
+            MenuEntriesType[CZ] = 11;
+            MenuEntriesStringPosition[CZ] = Location;
+        }
+
         public void ExecuteCommand(string Command)
         {
             Process process = new Process();
@@ -1023,6 +1250,19 @@ namespace RetroMap
                 }
             }
             return ReadList;
+        }
+
+        public static bool ParentDirectoryExists(string dir)
+        {
+            DirectoryInfo dirInfo = Directory.GetParent(dir);
+            if ((dirInfo != null) && dirInfo.Exists)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 }
