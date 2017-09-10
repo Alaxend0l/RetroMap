@@ -109,8 +109,8 @@ namespace RetroMap
 
         protected override void Initialize()
         {
-            DebugMode = true;
-            Root = @"C:\RetroMap\";
+            DebugMode = false;
+            Root = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + @"\RetroMap\";
             RootConfig = Root + @"Config\";
             Directory.CreateDirectory(Root);
             Directory.CreateDirectory(RootConfig);
@@ -849,12 +849,17 @@ namespace RetroMap
                         break;
                     case 2:
                         MenuSetup("Systems Menu");
-                        //DataManagement("Roms", false);
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++)
-                            if (CZ < Systems.Count) EntryLink(new DirectoryInfo(@Systems[CZ]).Name, 1, CZ, false, true); else MenuEnd();
+                        DataManagement("Roms", false);
+                        DataManagement("System", false);
+                        MenuTotalEntries[0, 2] = MenuStorageIntStatic[0, 6, 0];
+                        for (CZ = 0; CZ < MenuTotalEntries[0, 2]; CZ++)
+                        {
+                            EntryLink(new DirectoryInfo(@Systems[CZ]).Name, 1, CZ, false, true);
+                        }
+                        MenuEnd();
                         break;
                     case 3:
-                        MenuSetup("Emulators Menu"); DataManagement("Emulators", false);
+                        MenuSetup("Emulators Menu"); DataManagement("Emulators", false); DataManagement("System", false);
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
                             {
                                 default: if (CZ < Systems.Count) EntryOption(new DirectoryInfo(@Systems[CZ]).Name, new Vector3(0, 0, CZ), 2, 0, EmulatorExes.Count - 1, false); else MenuEnd(); break;
@@ -996,9 +1001,18 @@ namespace RetroMap
                 int SystemsGamesAmount = SystemsGames.Length;
                 for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++)
                 {
-                    if (CZ < SystemsGamesAmount) EntryProgram(SystemsGames[CZ].Replace((Systems[CY] + @"\"), ""), EmulatorExes[MenuStorageIntStatic[0, 0, CY]], SystemsGames[CZ], "<FILE>");
-                    else MenuEnd();
+                    if (EmulatorExes.Count != 0)
+                    {
+                        if (CZ < SystemsGamesAmount) EntryProgram(SystemsGames[CZ].Replace((Systems[CY] + @"\"), ""), EmulatorExes[MenuStorageIntStatic[0, 0, CY]], SystemsGames[CZ], "<FILE>");
+                        else MenuEnd();
+                    }
+                    else
+                    {
+                        if (CZ < SystemsGamesAmount) EntryText(SystemsGames[CZ].Replace((Systems[CY] + @"\"), "") + " !!! No Emulators To Use!");
+                        else MenuEnd();
+                    }
                 }
+                int Test = 0;
             }
             else if (CX == 2)
             {
@@ -1180,7 +1194,7 @@ namespace RetroMap
                     if (File.Exists(RootConfig + @"\Roms.txt"))
                     {
                         List<string> VideoStorage = new List<string>();
-                        BackgroundImages.Clear();
+                        Systems.Clear();
                         if (OnBoot)
                         {
                             VideoStorage = ReadFromFile(RootConfig + @"\Roms.txt");
@@ -1271,10 +1285,20 @@ namespace RetroMap
                     if (File.Exists(RootConfig + @"\System.txt"))
                     {
                         List<string> VideoStorage = new List<string>();
-                        VideoStorage = ReadFromFile(RootConfig + @"\System.txt");
-                        for (int c = 0; c < MenuStorageIntStatic[0, 6, 0]; c++)
+                        if (OnBoot)
                         {
-                            if (VideoStorage.Count > c) MenuStorageIntStatic[0, 0, c] = Int32.Parse(VideoStorage[c]); else MenuStorageIntStatic[0, 0, c] = 0;
+                            VideoStorage = ReadFromFile(RootConfig + @"\System.txt");
+                            for (int c = 0; c < MenuStorageIntStatic[0, 6, 0]; c++)
+                            {
+                                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 0, c] = Int32.Parse(VideoStorage[c]); else MenuStorageIntStatic[0, 0, c] = 0;
+                            }
+                        }
+                        else
+                        {
+                            for (int i = 0; i < MenuStorageIntStatic[0, 6, 0]; i++)
+                            {
+                                VideoStorage.Add(MenuStorageStringStatic[0, 0, i]);
+                            }
                         }
                     }
                     else
