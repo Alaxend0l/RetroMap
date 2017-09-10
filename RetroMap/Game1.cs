@@ -22,9 +22,7 @@ namespace RetroMap
         bool DebugMode;
         string Root;
         string RootConfig;
-        string RootRoms;
-        string RootConfigSystems;
-        string[] Systems;
+        List<string> Systems;
         List<string> EmulatorExes;
         List<string> BackgroundImages;
         int[] SystemEmulator;
@@ -70,7 +68,6 @@ namespace RetroMap
         List<string> MenuResolutionDisplay;
         List<string> MenuWindowMode;
         List<DisplayMode> MenuDisplayMode;
-        bool MenuReset;
         int ExplorerPurpose;
         string ExplorerString;
         int ExplorerLastEntry;
@@ -115,13 +112,9 @@ namespace RetroMap
             DebugMode = true;
             Root = @"C:\RetroMap\";
             RootConfig = Root + @"Config\";
-            RootConfigSystems = RootConfig + @"Systems\";
             Directory.CreateDirectory(Root);
             Directory.CreateDirectory(RootConfig);
-            Directory.CreateDirectory(RootConfigSystems);
-            RootRoms = Root + @"Roms\";
-            Directory.CreateDirectory(RootRoms);
-            Systems = Directory.GetDirectories(RootRoms);
+            Systems = new List<string>();
             BackgroundImages = new List<string>();
             EmulatorExes = new List<string>();
             MaxSections = 16;
@@ -130,7 +123,6 @@ namespace RetroMap
             MaxStorage = 10000;
             MenuStorageIntStatic = new int[1, 256, 256];
             MenuStorageStringStatic = new string[1, 256, 256];
-            MenuSystemLoad = new List<string>[Systems.Length];
             MenuResolutionDisplay = new List<string>();
             MenuDisplayMode = new List<DisplayMode>();
             MenuWindowMode = new List<string> { "Window", "Fullscreen", "Borderless" };
@@ -138,10 +130,6 @@ namespace RetroMap
             {
                 MenuResolutionDisplay.Add(mode.ToString());
                 MenuDisplayMode.Add(mode);
-            }
-            for (CX = 0; CX < Systems.Length; CX++)
-            {
-                MenuSystemLoad[CX] = new List<string>();
             }
             HoldThreshold = 0.3f;
             HoldReducePerClick = 0.05f;
@@ -174,9 +162,9 @@ namespace RetroMap
             MenuEntriesIntMaximum = new int[MaxEntries];
             MenuEntriesStringPosition = new Vector3[MaxEntries];
             MenuOptionsLocations = new List<int>();
-            DataManagement("System", true);
             DataManagement("Roms", true);
             DataManagement("Emulators", true);
+            DataManagement("System", true);
             DataManagement("Backgrounds", true);
             DataManagement("Video", true);
             DataManagement("Clock", true);
@@ -509,12 +497,12 @@ namespace RetroMap
                 {
                     if (SectionLast == 0 && MenuLast == 3)
                     {
-                        for (CX = 0; CX < Systems.Length; CX++)
+                        List<string> SaveList = new List<string>();
+                        for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
                         {
-                            MenuSystemLoad[CX].Clear();
-                            MenuSystemLoad[CX].Add(MenuStorageIntStatic[0, 0, CX].ToString());
-                            WriteToFile(RootConfigSystems + Systems[CX].Replace(RootRoms, "") + @"\System.txt", MenuSystemLoad[CX]);
+                            SaveList.Add(MenuStorageIntStatic[0, 0, CX].ToString());
                         }
+                        WriteToFile(RootConfig + @"\System.txt", SaveList);
                     }
                     if (SectionLast == 0 && MenuLast == 8)
                     {
@@ -534,6 +522,25 @@ namespace RetroMap
                         }
                         WriteToFile(RootConfig + @"\Slide.txt", SaveList);
                     }
+                }
+                if (SectionLast == 0 && MenuLast == 12 && SectionSelection != 2)
+                {
+                    List<string> SaveList = new List<string>();
+                    for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
+                    {
+                        if (CX == 0)
+                        {
+                            SaveList.Add(MenuStorageIntStatic[0, 6, CX].ToString());
+                        }
+                        else
+                        {
+                            if (MenuStorageStringStatic[0, 6, CX] != null)
+                            {
+                                SaveList.Add(MenuStorageStringStatic[0, 6, CX].ToString());
+                            }
+                        }
+                    }
+                    WriteToFile(RootConfig + @"\Roms.txt", SaveList);
                 }
                 if (SectionLast == 0 && MenuLast == 13 && SectionSelection != 2)
                 {
@@ -602,7 +609,14 @@ namespace RetroMap
                 MenuEntriesDraw[i] = "";
                 if (i == EntrySelection)
                 {
-                    MenuEntriesDraw[i] += ">>> ";
+                    if (DebugMode)
+                    {
+                        MenuEntriesDraw[i] += "|" + SectionSelection + "|" + MenuSelection + "|" + EntrySelection + "| ";
+                    }
+                    else
+                    {
+                        MenuEntriesDraw[i] += ">>> ";
+                    }
                 }
                 MenuEntriesDraw[i] += MenuEntriesAccess[i];
                 if (MenuEntriesType[i] == 5)
@@ -835,16 +849,15 @@ namespace RetroMap
                         break;
                     case 2:
                         MenuSetup("Systems Menu");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
-                            {
-                                default: if (CZ < Systems.Length) EntryLink(Systems[CZ].Replace(RootRoms, ""), 1, CZ, false, true); else MenuEnd(); break;
-                            }
+                        //DataManagement("Roms", false);
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++)
+                            if (CZ < Systems.Count) EntryLink(new DirectoryInfo(@Systems[CZ]).Name, 1, CZ, false, true); else MenuEnd();
                         break;
                     case 3:
                         MenuSetup("Emulators Menu"); DataManagement("Emulators", false);
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
                             {
-                                default: if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), new Vector3(0, 0, CZ), 2, 0, EmulatorExes.Count - 1, false); else MenuEnd(); break;
+                                default: if (CZ < Systems.Count) EntryOption(new DirectoryInfo(@Systems[CZ]).Name, new Vector3(0, 0, CZ), 2, 0, EmulatorExes.Count - 1, false); else MenuEnd(); break;
                             }
                         break;
                     case 4:
@@ -921,6 +934,21 @@ namespace RetroMap
                                 case 1: EntryLink("Emulator Executable Paths", 0, 13, false, true); break;
                                 case 2: EntryLink("Background Folder Paths", 0, 14, false, true); break;
                             }
+                        break;
+                    case 12:
+                        MenuSetup("Rom Folder Paths");
+                        for (CZ = 0; CZ < MenuStorageIntStatic[0, 6, 0] + 1; CZ++)
+                        {
+                            if (CZ == 0)
+                            {
+                                EntryOption("Rom Folders: ", new Vector3(0, 6, 0), 0, 0, 250, true);
+                            }
+                            else
+                            {
+                                EntryExplorer("Folder " + CZ + ": ", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 0, new Vector3(0, 6, CZ));
+                            }
+                        }
+                        MenuEnd();
                         break;
                     case 13:
                         MenuSetup("Emulator Paths");
@@ -1148,50 +1176,52 @@ namespace RetroMap
         {
             switch (Element)
             {
-                case "System":
-                    List<string> UnaccountedSystemFolders = new List<string>();
-                    for (CX = 0; CX < Systems.Length; CX++)
+                case "Roms":
+                    if (File.Exists(RootConfig + @"\Roms.txt"))
                     {
-                        UnaccountedSystemFolders.Add(Systems[CX].Replace(RootRoms, ""));
-                    }
-                    CX = 0;
-                    while (UnaccountedSystemFolders.Count > 0)
-                    {
-                        bool FoundSystem = false;
-                        for (int a = 0; a < Systems.Length && !FoundSystem; a++)
+                        List<string> VideoStorage = new List<string>();
+                        BackgroundImages.Clear();
+                        if (OnBoot)
                         {
-                            if (UnaccountedSystemFolders[0] == Systems[a].Replace(RootRoms, "") && Directory.Exists(RootConfigSystems + Systems[a].Replace(RootRoms, "")) && File.Exists(RootConfigSystems + Systems[a].Replace(RootRoms, "") + @"\System.txt"))
+                            VideoStorage = ReadFromFile(RootConfig + @"\Roms.txt");
+                            int c = 0;
+                            if (VideoStorage.Count > c) MenuStorageIntStatic[0, 6, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 6, 0] = 0; c++;
+                            while (c < VideoStorage.Count)
                             {
-                                FoundSystem = true;
-                                CZ = a;
+                                MenuStorageStringStatic[0, 6, c] = VideoStorage[c];
+                                c++;
                             }
-                        }
-                        if (FoundSystem)
-                        {
-                            MenuSystemLoad[CX] = ReadFromFile(RootConfigSystems + Systems[CX].Replace(RootRoms, "") + @"\System.txt");
-                            MenuStorageIntStatic[0, 0, CX] = Int32.Parse(MenuSystemLoad[CX][0]);
-                            UnaccountedSystemFolders.RemoveAt(0);
                         }
                         else
                         {
-                            Directory.CreateDirectory(RootConfigSystems + Systems[CX].Replace(RootRoms, ""));
-                            List<string> TestList = new List<string>();
-                            TestList.Add(0.ToString());
-                            MenuSystemLoad[CX].Add(0.ToString());
-                            WriteToFile(RootConfigSystems + Systems[CX].Replace(RootRoms, "") + @"\System.txt", TestList);
-                            TestList.Clear();
-                            string[] TestArray = Directory.GetFiles(Systems[CX]);
-                            for (CY = 0; CY < TestArray.Length; CY++)
+                            VideoStorage.Add(MenuStorageIntStatic[0, 6, 0].ToString());
+                            for (int i = 0; i < MenuStorageIntStatic[0, 6, 0]; i++)
                             {
-                                List<string> TestList2 = new List<string>();
-                                TestList2.Add(0.ToString());
-                                string UpcomingPath = RootConfigSystems + TestArray[CY].Replace(RootConfigSystems + Systems[CX].Replace(RootRoms, ""), "").Replace(RootRoms, "") + @".txt";
-                                WriteToFile(UpcomingPath, TestList2);
+                                VideoStorage.Add(MenuStorageStringStatic[0, 6, i + 1]);
                             }
-                            MenuStorageIntStatic[0, 0, CX] = 0;
-                            UnaccountedSystemFolders.RemoveAt(0);
                         }
-                        CX++;
+                        for (int i = 0; i < MenuStorageIntStatic[0, 6, 0]; i++)
+                        {
+                            if (VideoStorage.Count > i + 1)
+                            {
+                                if (VideoStorage[i + 1] != null)
+                                {
+                                    Systems.Add(VideoStorage[i + 1]);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage.Add(0.ToString());
+                        MenuStorageIntStatic[0, 6, 0] = 0;
+                        WriteToFile(RootConfig + @"\Roms.txt", VideoStorage);
+                    }
+                    MenuSystemLoad = new List<string>[Systems.Count];
+                    for (CX = 0; CX < Systems.Count; CX++)
+                    {
+                        MenuSystemLoad[CX] = new List<string>();
                     }
                     break;
                 case "Emulators":
@@ -1233,8 +1263,29 @@ namespace RetroMap
                     {
                         List<string> VideoStorage = new List<string>();
                         VideoStorage.Add(0.ToString());
-                        MenuStorageIntStatic[0, 4, 0] = 0;
-                        WriteToFile(RootConfig + @"\Backgrounds.txt", VideoStorage);
+                        MenuStorageIntStatic[0, 5, 0] = 0;
+                        WriteToFile(RootConfig + @"\Emulators.txt", VideoStorage);
+                    }
+                    break;
+                case "System":
+                    if (File.Exists(RootConfig + @"\System.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage = ReadFromFile(RootConfig + @"\System.txt");
+                        for (int c = 0; c < MenuStorageIntStatic[0, 6, 0]; c++)
+                        {
+                            if (VideoStorage.Count > c) MenuStorageIntStatic[0, 0, c] = Int32.Parse(VideoStorage[c]); else MenuStorageIntStatic[0, 0, c] = 0;
+                        }
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        for (int c = 0; c < MenuStorageIntStatic[0, 6, 0]; c++)
+                        {
+                            VideoStorage.Add(0.ToString());
+                            MenuStorageIntStatic[0, 0, c] = 0;
+                        }
+                        WriteToFile(RootConfig + @"\System.txt", VideoStorage);
                     }
                     break;
                 case "Backgrounds":
@@ -1324,9 +1375,9 @@ namespace RetroMap
                         List<string> VideoStorage = new List<string>();
                         VideoStorage = ReadFromFile(RootConfig + @"\Clock.txt");
                         int c = 0;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 1, 0] = 1; c++;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 1, 1] = 0; c++;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 1, 2] = 1; c++;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 2, 0] = 1; c++;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 2, 1] = 0; c++;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 2, 2] = 1; c++;
                     }
                     else
                     {
