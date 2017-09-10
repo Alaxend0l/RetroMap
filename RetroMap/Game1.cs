@@ -22,12 +22,10 @@ namespace RetroMap
         bool DebugMode;
         string Root;
         string RootConfig;
-        string RootEmulators;
         string RootRoms;
         string RootConfigSystems;
         string[] Systems;
-        string[] Emulators;
-        string[] EmulatorExes;
+        List<string> EmulatorExes;
         List<string> BackgroundImages;
         int[] SystemEmulator;
         int CurrentWidth;
@@ -121,20 +119,17 @@ namespace RetroMap
             Directory.CreateDirectory(Root);
             Directory.CreateDirectory(RootConfig);
             Directory.CreateDirectory(RootConfigSystems);
-            RootEmulators = Root + @"Emulators\";
             RootRoms = Root + @"Roms\";
-            Directory.CreateDirectory(RootEmulators);
             Directory.CreateDirectory(RootRoms);
             Systems = Directory.GetDirectories(RootRoms);
-            Emulators = Directory.GetDirectories(RootEmulators);
-            EmulatorExes = new string[Emulators.Length];
             BackgroundImages = new List<string>();
+            EmulatorExes = new List<string>();
             MaxSections = 16;
             MaxMenus = 64;
             MaxEntries = 65535;
             MaxStorage = 10000;
-            MenuStorageIntStatic = new int[1, 255, 255];
-            MenuStorageStringStatic = new string[1, 255, 255];
+            MenuStorageIntStatic = new int[1, 256, 256];
+            MenuStorageStringStatic = new string[1, 256, 256];
             MenuSystemLoad = new List<string>[Systems.Length];
             MenuResolutionDisplay = new List<string>();
             MenuDisplayMode = new List<DisplayMode>();
@@ -147,10 +142,6 @@ namespace RetroMap
             for (CX = 0; CX < Systems.Length; CX++)
             {
                 MenuSystemLoad[CX] = new List<string>();
-            }
-            for (CX = 0; CX < Emulators.Length; CX++)
-            {
-                EmulatorExes[CX] = Directory.GetFiles(Emulators[CX], "*.exe")[0];
             }
             HoldThreshold = 0.3f;
             HoldReducePerClick = 0.05f;
@@ -184,6 +175,8 @@ namespace RetroMap
             MenuEntriesStringPosition = new Vector3[MaxEntries];
             MenuOptionsLocations = new List<int>();
             DataManagement("System", true);
+            DataManagement("Roms", true);
+            DataManagement("Emulators", true);
             DataManagement("Backgrounds", true);
             DataManagement("Video", true);
             DataManagement("Clock", true);
@@ -542,6 +535,25 @@ namespace RetroMap
                         WriteToFile(RootConfig + @"\Slide.txt", SaveList);
                     }
                 }
+                if (SectionLast == 0 && MenuLast == 13 && SectionSelection != 2)
+                {
+                    List<string> SaveList = new List<string>();
+                    for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
+                    {
+                        if (CX == 0)
+                        {
+                            SaveList.Add(MenuStorageIntStatic[0, 5, CX].ToString());
+                        }
+                        else
+                        {
+                            if (MenuStorageStringStatic[0, 5, CX] != null)
+                            {
+                                SaveList.Add(MenuStorageStringStatic[0, 5, CX].ToString());
+                            }
+                        }
+                    }
+                    WriteToFile(RootConfig + @"\Emulators.txt", SaveList);
+                }
                 if (SectionLast == 0 && MenuLast == 14 && SectionSelection != 2)
                 {
                     List<string> SaveList = new List<string>();
@@ -614,13 +626,13 @@ namespace RetroMap
                     int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
                     if (SectionSelection == 0 && MenuSelection == 3)
                     {
-                        if (IntStatic < Emulators.Length)
+                        if (IntStatic < EmulatorExes.Count)
                         {
-                            MenuEntriesDraw[i] += " | " + Emulators[IntStatic].Replace(RootEmulators, "");
+                            MenuEntriesDraw[i] += " | " + EmulatorExes[IntStatic];
                         }
                         else
                         {
-                            if (Emulators.Length == 0)
+                            if (EmulatorExes.Count == 0)
                             {
                                 MenuEntriesDraw[i] += " | Error: No Emulators Found";
                             }
@@ -829,10 +841,10 @@ namespace RetroMap
                             }
                         break;
                     case 3:
-                        MenuSetup("Emulators Menu");
+                        MenuSetup("Emulators Menu"); DataManagement("Emulators", false);
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
                             {
-                                default: if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), new Vector3(0, 0, CZ), 2, 0, Emulators.Length - 1, false); else MenuEnd(); break;
+                                default: if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), new Vector3(0, 0, CZ), 2, 0, EmulatorExes.Count - 1, false); else MenuEnd(); break;
                             }
                         break;
                     case 4:
@@ -909,6 +921,21 @@ namespace RetroMap
                                 case 1: EntryLink("Emulator Executable Paths", 0, 13, false, true); break;
                                 case 2: EntryLink("Background Folder Paths", 0, 14, false, true); break;
                             }
+                        break;
+                    case 13:
+                        MenuSetup("Emulator Paths");
+                        for (CZ = 0; CZ < MenuStorageIntStatic[0, 5, 0] + 1; CZ++)
+                        {
+                            if (CZ == 0)
+                            {
+                                EntryOption("Amount of Emulators: ", new Vector3(0, 5, 0), 0, 0, 250, true);
+                            }
+                            else
+                            {
+                                EntryExplorer("Emulator " + CZ + ": ", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 1, new Vector3(0, 5, CZ));
+                            }
+                        }
+                        MenuEnd();
                         break;
                     case 14:
                         MenuSetup("Background Paths");
@@ -1165,6 +1192,49 @@ namespace RetroMap
                             UnaccountedSystemFolders.RemoveAt(0);
                         }
                         CX++;
+                    }
+                    break;
+                case "Emulators":
+                    if (File.Exists(RootConfig + @"\Emulators.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        EmulatorExes.Clear();
+                        if (OnBoot)
+                        {
+                            VideoStorage = ReadFromFile(RootConfig + @"\Emulators.txt");
+                            int c = 0;
+                            if (VideoStorage.Count > c) MenuStorageIntStatic[0, 5, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 5, 0] = 0; c++;
+                            while (c < VideoStorage.Count)
+                            {
+                                MenuStorageStringStatic[0, 5, c] = VideoStorage[c];
+                                c++;
+                            }
+                        }
+                        else
+                        {
+                            VideoStorage.Add(MenuStorageIntStatic[0, 5, 0].ToString());
+                            for (int i = 0; i < MenuStorageIntStatic[0, 5, 0]; i++)
+                            {
+                                VideoStorage.Add(MenuStorageStringStatic[0, 5, i + 1]);
+                            }
+                        }
+                        for (int i = 0; i < MenuStorageIntStatic[0, 5, 0]; i++)
+                        {
+                            if (VideoStorage.Count > i + 1)
+                            {
+                                if (VideoStorage[i + 1] != null)
+                                {
+                                    EmulatorExes.Add(VideoStorage[i + 1]);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage.Add(0.ToString());
+                        MenuStorageIntStatic[0, 4, 0] = 0;
+                        WriteToFile(RootConfig + @"\Backgrounds.txt", VideoStorage);
                     }
                     break;
                 case "Backgrounds":
