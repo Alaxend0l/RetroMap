@@ -24,7 +24,6 @@ namespace RetroMap
         string RootConfig;
         string RootEmulators;
         string RootRoms;
-        string RootBackgrounds;
         string RootConfigSystems;
         string[] Systems;
         string[] Emulators;
@@ -651,7 +650,7 @@ namespace RetroMap
                         }
                         else
                         {
-                            MenuEntriesDraw[i] += "" + BackgroundImages[IntStatic - 2].Replace(RootBackgrounds, "");
+                            MenuEntriesDraw[i] += "" + BackgroundImages[IntStatic - 2];
                         }
                     }
                     else
