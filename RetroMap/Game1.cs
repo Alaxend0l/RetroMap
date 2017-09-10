@@ -29,7 +29,7 @@ namespace RetroMap
         string[] Systems;
         string[] Emulators;
         string[] EmulatorExes;
-        string[] Backgrounds;
+        List<string> BackgroundImages;
         int[] SystemEmulator;
         int CurrentWidth;
         int CurrentHeight;
@@ -92,6 +92,7 @@ namespace RetroMap
         Vector3[] MenuEntriesStringPosition;
         int[] MenuEntriesIntMinimum;
         int[] MenuEntriesIntMaximum;
+        bool[] MenuEntriesRebuildOnChange;
         bool[] MenuEntriesLocked; //Whether or not the menu entry is currently restricted
         bool[] MenuEntriesShowFuture; //Whether or not the entry shows its destination
         bool[] MenuEntriesShowModel; //Whether or not the entry shows a model
@@ -123,14 +124,12 @@ namespace RetroMap
             Directory.CreateDirectory(RootConfigSystems);
             RootEmulators = Root + @"Emulators\";
             RootRoms = Root + @"Roms\";
-            RootBackgrounds = Root + @"Backgrounds\";
             Directory.CreateDirectory(RootEmulators);
             Directory.CreateDirectory(RootRoms);
-            Directory.CreateDirectory(RootBackgrounds);
             Systems = Directory.GetDirectories(RootRoms);
             Emulators = Directory.GetDirectories(RootEmulators);
             EmulatorExes = new string[Emulators.Length];
-            Backgrounds = Directory.GetFiles(RootBackgrounds);
+            BackgroundImages = new List<string>();
             MaxSections = 16;
             MaxMenus = 64;
             MaxEntries = 65535;
@@ -154,116 +153,6 @@ namespace RetroMap
             {
                 EmulatorExes[CX] = Directory.GetFiles(Emulators[CX], "*.exe")[0];
             }
-            List<string> UnaccountedSystemFolders = new List<string>();
-            for (CX = 0; CX < Systems.Length; CX++)
-            {
-                UnaccountedSystemFolders.Add(Systems[CX].Replace(RootRoms, ""));
-            }
-            WriteToFile(RootConfig + "Test.txt", UnaccountedSystemFolders);
-            CX = 0;
-            while (UnaccountedSystemFolders.Count > 0)
-            {
-                bool FoundSystem = false;
-                for (int a = 0; a < Systems.Length && !FoundSystem; a++)
-                {
-                    if (UnaccountedSystemFolders[0] == Systems[a].Replace(RootRoms, "") && Directory.Exists(RootConfigSystems + Systems[a].Replace(RootRoms, "")) && File.Exists(RootConfigSystems + Systems[a].Replace(RootRoms, "") + @"\System.txt"))
-                    {
-                        FoundSystem = true;
-                        CZ = a;
-                    }
-                }
-                if (FoundSystem)
-                {
-                    MenuSystemLoad[CX] = ReadFromFile(RootConfigSystems + Systems[CX].Replace(RootRoms, "") + @"\System.txt");
-                    MenuStorageIntStatic[0, 0, CX] = Int32.Parse(MenuSystemLoad[CX][0]);
-                    UnaccountedSystemFolders.RemoveAt(0);
-                }
-                else
-                {
-                    Directory.CreateDirectory(RootConfigSystems + Systems[CX].Replace(RootRoms, ""));
-                    List<string> TestList = new List<string>();
-                    TestList.Add(0.ToString());
-                    MenuSystemLoad[CX].Add(0.ToString());
-                    WriteToFile(RootConfigSystems + Systems[CX].Replace(RootRoms, "") + @"\System.txt", TestList);
-                    TestList.Clear();
-                    string[] TestArray = Directory.GetFiles(Systems[CX]);
-                    for (CY = 0; CY < TestArray.Length; CY++)
-                    {
-                        List<string> TestList2 = new List<string>();
-                        TestList2.Add(0.ToString());
-                        string UpcomingPath = RootConfigSystems + TestArray[CY].Replace(RootConfigSystems + Systems[CX].Replace(RootRoms, ""), "").Replace(RootRoms, "") + @".txt";
-                        WriteToFile(UpcomingPath, TestList2);
-                    }
-                    MenuStorageIntStatic[0, 0, CX] = 0;
-                    UnaccountedSystemFolders.RemoveAt(0);
-                }
-                CX++;
-            }
-            if (File.Exists(RootConfig + @"\Video.txt"))
-            {
-                List<string> VideoStorage = new List<string>();
-                VideoStorage = ReadFromFile(RootConfig + @"\Video.txt");
-                int c = 0;
-                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 1, 0] = 0; c++;
-                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 1, 1] = 2; c++;
-                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 1, 2] = 0; c++;
-                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 3] = Int32.Parse(VideoStorage[3]); else MenuStorageIntStatic[0, 1, 3] = 12; c++;
-                ApplyGraphics(MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Width, MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Height, MenuStorageIntStatic[0, 1, 1]);
-            }
-            else
-            {
-                List<string> VideoStorage = new List<string>();
-                int b = 0;
-                while (MenuDisplayMode[b].Width != 1280 && MenuDisplayMode[b].Height != 720 && MenuDisplayMode.Count != b) b++;
-                b++;
-                VideoStorage.Add(b.ToString());
-                VideoStorage.Add(2.ToString());
-                VideoStorage.Add(0.ToString());
-                MenuStorageIntStatic[0, 1, 0] = b;
-                MenuStorageIntStatic[0, 1, 1] = 2;
-                MenuStorageIntStatic[0, 1, 2] = 0;
-                MenuStorageIntStatic[0, 1, 3] = 12;
-                ApplyGraphics(MenuDisplayMode[b].Width, MenuDisplayMode[b].Height, 2);
-                WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
-            }
-            if (File.Exists(RootConfig + @"\Clock.txt"))
-            {
-                List<string> VideoStorage = new List<string>();
-                VideoStorage = ReadFromFile(RootConfig + @"\Clock.txt");
-                int c = 0;
-                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 1, 0] = 1; c++;
-                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 1, 1] = 0; c++;
-                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 1, 2] = 1; c++;
-            }
-            else
-            {
-                List<string> VideoStorage = new List<string>();
-                VideoStorage.Add(1.ToString());
-                VideoStorage.Add(0.ToString());
-                VideoStorage.Add(1.ToString());
-                MenuStorageIntStatic[0, 2, 0] = 1; //Controls Whether The Clock Will Be Shown
-                MenuStorageIntStatic[0, 2, 1] = 0; //Controls Whether The Clock Will Show 12 Hour Time or 24 Hour Time
-                MenuStorageIntStatic[0, 2, 2] = 1; //Controls Whether The Clock Will Show Seconds
-                WriteToFile(RootConfig + @"\Clock.txt", VideoStorage);
-            }
-            if (File.Exists(RootConfig + @"\Slide.txt"))
-            {
-                List<string> VideoStorage = new List<string>();
-                VideoStorage = ReadFromFile(RootConfig + @"\Slide.txt");
-                int c = 0;
-                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 3, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 3, 0] = 1; c++;
-                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 3, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 3, 1] = 16; c++;
-            }
-            else
-            {
-                List<string> VideoStorage = new List<string>();
-                VideoStorage.Add(1.ToString());
-                VideoStorage.Add(16.ToString());
-                MenuStorageIntStatic[0, 3, 0] = 1; //Controls Whether Entries Will Slide When Entry Is Changed
-                MenuStorageIntStatic[0, 3, 1] = 16; //Controls How Fast Entries Slide
-                WriteToFile(RootConfig + @"\Slide.txt", VideoStorage);
-            }
-            if (DebugMode) MenuSelection = 0; else MenuSelection = 1;
             HoldThreshold = 0.3f;
             HoldReducePerClick = 0.05f;
             EntrySelection = 0;
@@ -285,6 +174,7 @@ namespace RetroMap
             MenuEntriesType = new int[MaxEntries];
             MenuEntriesDestinationSection = new int[MaxEntries];
             MenuEntriesDestinationMenu = new int[MaxEntries];
+            MenuEntriesRebuildOnChange = new bool[MaxEntries];
             MenuEntriesLocked = new bool[MaxEntries];
             MenuEntriesShowFuture = new bool[MaxEntries];
             MenuEntriesShowModel = new bool[MaxEntries];
@@ -294,6 +184,11 @@ namespace RetroMap
             MenuEntriesIntMaximum = new int[MaxEntries];
             MenuEntriesStringPosition = new Vector3[MaxEntries];
             MenuOptionsLocations = new List<int>();
+            DataManagement("System", true);
+            DataManagement("Backgrounds", true);
+            DataManagement("Video", true);
+            DataManagement("Clock", true);
+            DataManagement("Slide", true);
             RebuildMenu(SectionSelection, MenuSelection);
         }
 
@@ -387,20 +282,14 @@ namespace RetroMap
             {
                 if (MenuEntriesType[EntrySelection] == 5 || MenuEntriesType[EntrySelection] == 6 || MenuEntriesType[EntrySelection] == 7)
                 {
-                    if (MenuEntriesIntOptionSegment[EntrySelection] == 0)
+                    Vector3 IntPosition = MenuEntriesIntPosition[EntrySelection];
+                    MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z]--;
+                    if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] < MenuEntriesIntMinimum[EntrySelection])
                     {
-
-                    }
-                    else if (MenuEntriesIntOptionSegment[EntrySelection] == 1)
-                    {
-                        Vector3 IntPosition = MenuEntriesIntPosition[EntrySelection];
-                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z]--;
-                        if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] < MenuEntriesIntMinimum[EntrySelection])
-                        {
-                            MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = MenuEntriesIntMaximum[EntrySelection];
-                        }
+                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = MenuEntriesIntMaximum[EntrySelection];
                     }
                     MenuOptionsSave[SectionSelection, MenuSelection] = true;
+                    if (MenuEntriesRebuildOnChange[EntrySelection]) RebuildMenu(SectionSelection, MenuSelection);
                 }
                 if (MenuEntriesType[EntrySelection] == 9 || MenuEntriesType[EntrySelection] == 10)
                 {
@@ -442,20 +331,14 @@ namespace RetroMap
             {
                 if (MenuEntriesType[EntrySelection] == 5 || MenuEntriesType[EntrySelection] == 6 || MenuEntriesType[EntrySelection] == 7)
                 {
-                    if (MenuEntriesIntOptionSegment[EntrySelection] == 0)
+                    Vector3 IntPosition = MenuEntriesIntPosition[EntrySelection];
+                    MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z]++;
+                    if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] > MenuEntriesIntMaximum[EntrySelection])
                     {
-
-                    }
-                    else if (MenuEntriesIntOptionSegment[EntrySelection] == 1)
-                    {
-                        Vector3 IntPosition = MenuEntriesIntPosition[EntrySelection];
-                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z]++;
-                        if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] > MenuEntriesIntMaximum[EntrySelection])
-                        {
-                            MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = MenuEntriesIntMinimum[EntrySelection];
-                        }
+                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = MenuEntriesIntMinimum[EntrySelection];
                     }
                     MenuOptionsSave[SectionSelection, MenuSelection] = true;
+                    if (MenuEntriesRebuildOnChange[EntrySelection]) RebuildMenu(SectionSelection, MenuSelection);
                 }
                 if (MenuEntriesType[EntrySelection] == 9)
                 {
@@ -554,6 +437,7 @@ namespace RetroMap
                     MenuSelection = MenuPast[MenuDepth];
                     EntrySelection = EntryAccess[MenuDepth];
                     ChangePrepared = true;
+                    MenuOptionsSave[SectionSelection, MenuSelection] = true;
                 }
             }
             if (BackPressed == 1)
@@ -659,6 +543,25 @@ namespace RetroMap
                         WriteToFile(RootConfig + @"\Slide.txt", SaveList);
                     }
                 }
+                if (SectionLast == 0 && MenuLast == 14 && SectionSelection != 2)
+                {
+                    List<string> SaveList = new List<string>();
+                    for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
+                    {
+                        if (CX == 0)
+                        {
+                            SaveList.Add(MenuStorageIntStatic[0, 4, CX].ToString());
+                        }
+                        else
+                        {
+                            if (MenuStorageStringStatic[0, 4, CX] != null)
+                            {
+                                SaveList.Add(MenuStorageStringStatic[0, 4, CX].ToString());
+                            }
+                        }
+                    }
+                    WriteToFile(RootConfig + @"\Backgrounds.txt", SaveList);
+                }
                 RebuildMenu(SectionSelection, MenuSelection);
                 ChangePrepared = false;
             }
@@ -748,7 +651,7 @@ namespace RetroMap
                         }
                         else
                         {
-                            MenuEntriesDraw[i] += "" + Backgrounds[IntStatic-2].Replace(RootBackgrounds, "");
+                            MenuEntriesDraw[i] += "" + BackgroundImages[IntStatic - 2].Replace(RootBackgrounds, "");
                         }
                     }
                     else
@@ -768,7 +671,7 @@ namespace RetroMap
                 float TextFinalY = TextListY - TextEntryY;
                 float TextX = 0;
                 float TextY = TextOrigin + TextFinalY + TextOffset;
-                if (TextY > (-TextSpread) && TextY < CurrentHeight+TextSpread)
+                if (TextY > (-TextSpread) && TextY < CurrentHeight + TextSpread)
                 {
                     Vector2 TextPosition = new Vector2(TextX, TextY);
                     DrawString(font, MenuEntriesDraw[i], TextPosition, 0, 0, Color.White);
@@ -779,7 +682,7 @@ namespace RetroMap
             base.Draw(gameTime);
         }
 
-        int KeyFunction(Microsoft.Xna.Framework.Input.Keys Key, int Current)
+        int KeyFunction(Keys Key, int Current)
         {
             if (Keyboard.GetState().IsKeyDown(Key))
             {
@@ -804,7 +707,7 @@ namespace RetroMap
                 }
             }
         }
-        int PadFunction(Microsoft.Xna.Framework.Input.Buttons Button, int Current)
+        int PadFunction(Buttons Button, int Current)
         {
             GamePadState state = GamePad.GetState(PlayerIndex.One);
             if (state.IsButtonDown(Button))
@@ -880,9 +783,9 @@ namespace RetroMap
                 background = Texture2D.FromStream(GraphicsDevice, fileStream);
                 fileStream.Dispose();
             }
-            else if (Backgrounds.Length+1 >= BackgroundID)
+            else if (BackgroundImages.Count + 1 >= BackgroundID)
             {
-                FileStream fileStream = new FileStream(Backgrounds[BackgroundID-2], FileMode.Open);
+                FileStream fileStream = new FileStream(BackgroundImages[BackgroundID - 2], FileMode.Open);
                 background = Texture2D.FromStream(GraphicsDevice, fileStream);
                 fileStream.Dispose();
             }
@@ -901,46 +804,47 @@ namespace RetroMap
                     case 0:
                         MenuSetup("Debug Menu");
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
-                        {
-                            default: MenuEnd(); break;
-                            case 0: EntryLink("Console Select", 0, 2, false, true); break;
-                            case 1: EntryLink("Emulator Select", 0, 3, false, true); break;
-                            case 2: EntryLink("Settings", 0, 1, false, true); break;
-                            case 3: EntryExit("Exit"); break;
-                        }
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryLink("Console Select", 0, 2, false, true); break;
+                                case 1: EntryLink("Emulator Select", 0, 3, false, true); break;
+                                case 2: EntryLink("Settings", 0, 1, false, true); break;
+                                case 3: EntryExit("Exit"); break;
+                            }
                         break;
                     case 1:
                         MenuSetup("Settings Menu");
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
-                        {
-                            default: MenuEnd(); break;
-                            case 0: EntryLink("Graphics Settings", 0, 4, false, true); break;
-                            case 1: EntryLink("Menu Settings", 0, 7, false, true); break;
-                        }
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryLink("Graphics Settings", 0, 4, false, true); break;
+                                case 1: EntryLink("Menu Settings", 0, 7, false, true); break;
+                                case 2: EntryLink("Path Settings", 0, 11, false, true); break;
+                            }
                         break;
                     case 2:
                         MenuSetup("Systems Menu");
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
-                        {
-                            default: if (CZ < Systems.Length) EntryLink(Systems[CZ].Replace(RootRoms, ""), 1, CZ, false, true); else MenuEnd(); break;
-                        }
+                            {
+                                default: if (CZ < Systems.Length) EntryLink(Systems[CZ].Replace(RootRoms, ""), 1, CZ, false, true); else MenuEnd(); break;
+                            }
                         break;
                     case 3:
                         MenuSetup("Emulators Menu");
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
                             {
-                                default: if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), 1, new Vector3(0, 0, CZ), 2, 0, Emulators.Length - 1); else MenuEnd(); break;
+                                default: if (CZ < Systems.Length) EntryOption(Systems[CZ].Replace(RootRoms, ""), new Vector3(0, 0, CZ), 2, 0, Emulators.Length - 1, false); else MenuEnd(); break;
                             }
                         break;
                     case 4:
-                        MenuSetup("");
+                        MenuSetup("Settings"); DataManagement("Backgrounds", false);
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
-                                case 0: EntryOption("Resolution: ", 1, new Vector3(0, 1, 0), 2, 0, MenuResolutionDisplay.Count - 1); break;
-                                case 1: EntryOption("Screen Mode: ", 1, new Vector3(0, 1, 1), 2, 0, 2); break;
-                                case 2: EntryOption("Current Background: ", 1, new Vector3(0, 1, 2), 2, 0, Backgrounds.Length + 1); break;
-                                case 3: EntryOption("Font Size: ", 1, new Vector3(0, 1, 3), 0, 12, 72); break;
+                                case 0: EntryOption("Resolution: ", new Vector3(0, 1, 0), 2, 0, MenuResolutionDisplay.Count - 1, false); break;
+                                case 1: EntryOption("Screen Mode: ", new Vector3(0, 1, 1), 2, 0, 2, false); break;
+                                case 2: EntryOption("Current Background: ", new Vector3(0, 1, 2), 2, 0, BackgroundImages.Count + 1, false); break;
+                                case 3: EntryOption("Font Size: ", new Vector3(0, 1, 3), 0, 12, 72, false); break;
                             }
                         break;
                     case 5:
@@ -974,9 +878,9 @@ namespace RetroMap
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
-                                case 0: EntryOption("Clock Toggle: ", 1, new Vector3(0, 2, 0), 1, 0, 1); break;
-                                case 1: EntryOption("Clock Mode: ", 1, new Vector3(0, 2, 1), 2, 0, 1); break;
-                                case 2: EntryOption("Clock Seconds: ", 1, new Vector3(0, 2, 2), 1, 0, 1); break;
+                                case 0: EntryOption("Clock Toggle: ", new Vector3(0, 2, 0), 1, 0, 1, false); break;
+                                case 1: EntryOption("Clock Mode: ", new Vector3(0, 2, 1), 2, 0, 1, false); break;
+                                case 2: EntryOption("Clock Seconds: ", new Vector3(0, 2, 2), 1, 0, 1, false); break;
                             }
                         break;
                     case 9:
@@ -984,8 +888,8 @@ namespace RetroMap
                         for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
-                                case 0: EntryOption("Slide Toggle: ", 1, new Vector3(0, 3, 0), 1, 0, 1); break;
-                                case 1: EntryOption("Slide Speed: ", 1, new Vector3(0, 3, 1), 0, 0, 30); break;
+                                case 0: EntryOption("Slide Toggle: ", new Vector3(0, 3, 0), 1, 0, 1, false); break;
+                                case 1: EntryOption("Slide Speed: ", new Vector3(0, 3, 1), 0, 0, 30, false); break;
                             }
                         break;
                     case 10:
@@ -996,6 +900,31 @@ namespace RetroMap
                                 case 0: EntryExplorer("File Explorer Test, Folder. Result: ", "", 0, new Vector3(0, 0, 0)); break;
                                 case 1: EntryExplorer("File Explorer Test, File. Result: ", "", 1, new Vector3(0, 0, 1)); break;
                             }
+                        break;
+                    case 11:
+                        MenuSetup("Path Hub");
+                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryLink("Rom Folder Paths", 0, 12, false, true); break;
+                                case 1: EntryLink("Emulator Executable Paths", 0, 13, false, true); break;
+                                case 2: EntryLink("Background Folder Paths", 0, 14, false, true); break;
+                            }
+                        break;
+                    case 14:
+                        MenuSetup("Background Paths");
+                        for (CZ = 0; CZ < MenuStorageIntStatic[0,4,0] + 1; CZ++)
+                        {
+                            if (CZ == 0)
+                            {
+                                EntryOption("Background Directories: ", new Vector3(0, 4, 0), 0, 0, 250, true);
+                            }
+                            else
+                            {
+                                EntryExplorer("BG" + CZ + ": ", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), 0, new Vector3(0, 4, CZ));
+                            }
+                        }
+                        MenuEnd();
                         break;
                     default:
                         MenuSetup("Placeholder");
@@ -1122,12 +1051,13 @@ namespace RetroMap
             MenuEntriesLocked[CZ] = false;
             MenuEntriesShowFuture[CZ] = false;
         }
-        void EntryOption(string EntryString, int OptionSegment, Vector3 VariableLocation, int OptionType, int MinimumIntAllowed, int MaximumIntAllowed)
+        void EntryOption(string EntryString, Vector3 VariableLocation, int OptionType, int MinimumIntAllowed, int MaximumIntAllowed, bool RebuildOnChange)
         {
             MenuEntriesAccess[CZ] = EntryString;
             MenuEntriesLocked[CZ] = false;
             MenuEntriesShowFuture[CZ] = false;
-            switch(OptionType)
+            MenuEntriesRebuildOnChange[CZ] = RebuildOnChange;
+            switch (OptionType)
             {
                 case 0:
                     MenuEntriesType[CZ] = 5;
@@ -1142,8 +1072,8 @@ namespace RetroMap
                     MenuEntriesType[CZ] = 5;
                     break;
             }
-            
-            MenuEntriesIntOptionSegment[CZ] = OptionSegment;
+
+            MenuEntriesIntOptionSegment[CZ] = 1;
             MenuOptions[CX, CY] = true;
             MenuOptionsSave[CX, CY] = false;
             MenuOptionsLocations.Add(CZ);
@@ -1151,19 +1081,9 @@ namespace RetroMap
             {
                 MaximumIntAllowed = MinimumIntAllowed;
             }
-            if (OptionSegment == 0)
-            {
-                //MenuEntriesIntArraySelect[CX, CY, CZ] = ArraySelect;
-                MenuEntriesIntPosition[CZ] = VariableLocation;
-                MenuEntriesIntMinimum[CZ] = MinimumIntAllowed;
-                MenuEntriesIntMaximum[CZ] = MaximumIntAllowed;
-            }
-            else if (OptionSegment == 1)
-            {
-                MenuEntriesIntPosition[CZ] = VariableLocation;
-                MenuEntriesIntMinimum[CZ] = MinimumIntAllowed;
-                MenuEntriesIntMaximum[CZ] = MaximumIntAllowed;
-            }
+            MenuEntriesIntPosition[CZ] = VariableLocation;
+            MenuEntriesIntMinimum[CZ] = MinimumIntAllowed;
+            MenuEntriesIntMaximum[CZ] = MaximumIntAllowed;
         }
         void EntryExplorer(string EntryString, string StartingDirectory, int Purpose, Vector3 Location)
         {
@@ -1196,6 +1116,181 @@ namespace RetroMap
             MenuEntriesShowFuture[CZ] = false;
             MenuEntriesType[CZ] = 11;
             MenuEntriesStringPosition[CZ] = Location;
+        }
+
+        void DataManagement(string Element, bool OnBoot)
+        {
+            switch (Element)
+            {
+                case "System":
+                    List<string> UnaccountedSystemFolders = new List<string>();
+                    for (CX = 0; CX < Systems.Length; CX++)
+                    {
+                        UnaccountedSystemFolders.Add(Systems[CX].Replace(RootRoms, ""));
+                    }
+                    CX = 0;
+                    while (UnaccountedSystemFolders.Count > 0)
+                    {
+                        bool FoundSystem = false;
+                        for (int a = 0; a < Systems.Length && !FoundSystem; a++)
+                        {
+                            if (UnaccountedSystemFolders[0] == Systems[a].Replace(RootRoms, "") && Directory.Exists(RootConfigSystems + Systems[a].Replace(RootRoms, "")) && File.Exists(RootConfigSystems + Systems[a].Replace(RootRoms, "") + @"\System.txt"))
+                            {
+                                FoundSystem = true;
+                                CZ = a;
+                            }
+                        }
+                        if (FoundSystem)
+                        {
+                            MenuSystemLoad[CX] = ReadFromFile(RootConfigSystems + Systems[CX].Replace(RootRoms, "") + @"\System.txt");
+                            MenuStorageIntStatic[0, 0, CX] = Int32.Parse(MenuSystemLoad[CX][0]);
+                            UnaccountedSystemFolders.RemoveAt(0);
+                        }
+                        else
+                        {
+                            Directory.CreateDirectory(RootConfigSystems + Systems[CX].Replace(RootRoms, ""));
+                            List<string> TestList = new List<string>();
+                            TestList.Add(0.ToString());
+                            MenuSystemLoad[CX].Add(0.ToString());
+                            WriteToFile(RootConfigSystems + Systems[CX].Replace(RootRoms, "") + @"\System.txt", TestList);
+                            TestList.Clear();
+                            string[] TestArray = Directory.GetFiles(Systems[CX]);
+                            for (CY = 0; CY < TestArray.Length; CY++)
+                            {
+                                List<string> TestList2 = new List<string>();
+                                TestList2.Add(0.ToString());
+                                string UpcomingPath = RootConfigSystems + TestArray[CY].Replace(RootConfigSystems + Systems[CX].Replace(RootRoms, ""), "").Replace(RootRoms, "") + @".txt";
+                                WriteToFile(UpcomingPath, TestList2);
+                            }
+                            MenuStorageIntStatic[0, 0, CX] = 0;
+                            UnaccountedSystemFolders.RemoveAt(0);
+                        }
+                        CX++;
+                    }
+                    break;
+                case "Backgrounds":
+                    if (File.Exists(RootConfig + @"\Backgrounds.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        BackgroundImages.Clear();
+                        if (OnBoot)
+                        {
+                            VideoStorage = ReadFromFile(RootConfig + @"\Backgrounds.txt");
+                            int c = 0;
+                            if (VideoStorage.Count > c) MenuStorageIntStatic[0, 4, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 4, 0] = 0; c++;
+                            while (c < VideoStorage.Count)
+                            {
+                                MenuStorageStringStatic[0, 4, c] = VideoStorage[c];
+                                c++;
+                            }
+                        }
+                        else
+                        {
+                            VideoStorage.Add(MenuStorageIntStatic[0, 4, 0].ToString());
+                            for (int i = 0; i < MenuStorageIntStatic[0, 4, 0]; i++)
+                            {
+                                VideoStorage.Add(MenuStorageStringStatic[0, 4, i + 1]);
+                            }
+                        }
+                        for (int i = 0; i < MenuStorageIntStatic[0, 4, 0]; i++)
+                        {
+                            if (VideoStorage.Count > i+1)
+                            {
+                                if (VideoStorage[i + 1] != null)
+                                {
+                                    string[] BackgroundsGet = Directory.GetFiles(VideoStorage[i + 1]);
+                                    for (int j = 0; j < BackgroundsGet.Length; j++)
+                                    {
+                                        string extension = Path.GetExtension(BackgroundsGet[j]);
+                                        if (extension == ".png" || extension == ".jpg" || extension == ".jpeg")
+                                        {
+                                            BackgroundImages.Add(BackgroundsGet[j]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage.Add(0.ToString());
+                        MenuStorageIntStatic[0, 4, 0] = 0;
+                        WriteToFile(RootConfig + @"\Backgrounds.txt", VideoStorage);
+                    }
+                    break;
+                case "Video":
+                    if (File.Exists(RootConfig + @"\Video.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage = ReadFromFile(RootConfig + @"\Video.txt");
+                        int c = 0;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 1, 0] = 0; c++;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 1, 1] = 2; c++;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 1, 2] = 0; c++;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 3] = Int32.Parse(VideoStorage[3]); else MenuStorageIntStatic[0, 1, 3] = 12; c++;
+                        if (MenuStorageIntStatic[0, 1, 2] >= BackgroundImages.Count) MenuStorageIntStatic[0, 1, 2] = 0;
+                        ApplyGraphics(MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Width, MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Height, MenuStorageIntStatic[0, 1, 1]);
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        int b = 0;
+                        while (MenuDisplayMode[b].Width != 1280 && MenuDisplayMode[b].Height != 720 && MenuDisplayMode.Count != b) b++;
+                        b++;
+                        VideoStorage.Add(b.ToString());
+                        VideoStorage.Add(2.ToString());
+                        VideoStorage.Add(0.ToString());
+                        MenuStorageIntStatic[0, 1, 0] = b;
+                        MenuStorageIntStatic[0, 1, 1] = 2;
+                        MenuStorageIntStatic[0, 1, 2] = 0;
+                        MenuStorageIntStatic[0, 1, 3] = 12;
+                        ApplyGraphics(MenuDisplayMode[b].Width, MenuDisplayMode[b].Height, 2);
+                        WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
+                    }
+                    break;
+                case "Clock":
+                    if (File.Exists(RootConfig + @"\Clock.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage = ReadFromFile(RootConfig + @"\Clock.txt");
+                        int c = 0;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 1, 0] = 1; c++;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 1, 1] = 0; c++;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 1, 2] = 1; c++;
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage.Add(1.ToString());
+                        VideoStorage.Add(0.ToString());
+                        VideoStorage.Add(1.ToString());
+                        MenuStorageIntStatic[0, 2, 0] = 1; //Controls Whether The Clock Will Be Shown
+                        MenuStorageIntStatic[0, 2, 1] = 0; //Controls Whether The Clock Will Show 12 Hour Time or 24 Hour Time
+                        MenuStorageIntStatic[0, 2, 2] = 1; //Controls Whether The Clock Will Show Seconds
+                        WriteToFile(RootConfig + @"\Clock.txt", VideoStorage);
+                    }
+                    break;
+                case "Slide":
+                    if (File.Exists(RootConfig + @"\Slide.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage = ReadFromFile(RootConfig + @"\Slide.txt");
+                        int c = 0;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 3, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 3, 0] = 1; c++;
+                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 3, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 3, 1] = 16; c++;
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage.Add(1.ToString());
+                        VideoStorage.Add(16.ToString());
+                        MenuStorageIntStatic[0, 3, 0] = 1; //Controls Whether Entries Will Slide When Entry Is Changed
+                        MenuStorageIntStatic[0, 3, 1] = 16; //Controls How Fast Entries Slide
+                        WriteToFile(RootConfig + @"\Slide.txt", VideoStorage);
+                    }
+                    break;
+            }
         }
 
         public void ExecuteCommand(string Command)
