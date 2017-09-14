@@ -25,13 +25,10 @@ namespace RetroMap
         List<string> Systems;
         List<string> EmulatorExes;
         List<string> BackgroundImages;
-        int[] SystemEmulator;
         int CurrentWidth;
         int CurrentHeight;
         int MaxSections;
         int MaxMenus;
-        int MaxEntries;
-        int MaxStorage;
         int MenuDepth;
         int SectionSelection;
         int MenuSelection;
@@ -52,14 +49,12 @@ namespace RetroMap
         float TextSpread;
         float TextOffset;
         string TimeString;
-        bool DrawSquare;
         int[] SectionPast; //Previously entered sections.
         int[] MenuPast; //Previously entered menu screens.
         int SectionLast;
         int MenuLast;
         int[] EntryAccess; //Menu item selected in past menu screens.
-        int[,] MenuTotalEntries; //Total amount of entries per menu.
-        string[,] MenuTitles; //Titles of each menu
+        string MenuTitle; //Titles of each menu
         bool[,] MenuOptions;
         bool[,] MenuOptionsSave;
         string[,] MenuOptionsString;
@@ -72,24 +67,8 @@ namespace RetroMap
         string ExplorerString;
         int ExplorerLastEntry;
         Vector3 ExplorerLocation;
-        string[] MenuEntriesDraw; //Menu strings to be drawn on-screen
-        string[] MenuEntriesAccess; //Menu strings to be manipulated before being drawn
-        string[] MenuEntriesProgram; //Strings for program entries to use to open programs
-        string[] MenuEntriesFile; //Strings for program entries to use to open files within programs
-        string[] MenuEntriesCommand; //Strings for program entries to use to as commands
-        int[] MenuEntriesPurpose;
-        int[] MenuEntriesType; //Types of entries. 0: Link, 1: Option, 2: Open Program
-        int[] MenuEntriesDestinationSection; //Entry destination when clicked (Section)
-        int[] MenuEntriesDestinationMenu; //Entry destination when clicked (Menu)
-        int[] MenuEntriesIntOptionSegment;
-        Vector3[] MenuEntriesIntPosition;
-        Vector3[] MenuEntriesStringPosition;
-        int[] MenuEntriesIntMinimum;
-        int[] MenuEntriesIntMaximum;
-        bool[] MenuEntriesRebuildOnChange;
-        bool[] MenuEntriesLocked; //Whether or not the menu entry is currently restricted
-        bool[] MenuEntriesShowFuture; //Whether or not the entry shows its destination
-        bool[] MenuEntriesShowModel; //Whether or not the entry shows a model
+        List<Entry> MenuEntriesList;
+        string MenuEntriesDraw; //Menu strings to be drawn on-screen
 
         int[,,] MenuStorageIntStatic;
         string[,,] MenuStorageStringStatic;
@@ -97,6 +76,7 @@ namespace RetroMap
         int CX;
         int CY;
         int CZ;
+        bool RebuildStop;
 
         public Game1()
         {
@@ -119,8 +99,6 @@ namespace RetroMap
             EmulatorExes = new List<string>();
             MaxSections = 16;
             MaxMenus = 64;
-            MaxEntries = 65535;
-            MaxStorage = 10000;
             MenuStorageIntStatic = new int[1, 256, 256];
             MenuStorageStringStatic = new string[1, 256, 256];
             MenuResolutionDisplay = new List<string>();
@@ -131,36 +109,17 @@ namespace RetroMap
                 MenuResolutionDisplay.Add(mode.ToString());
                 MenuDisplayMode.Add(mode);
             }
+            MenuEntriesList = new List<Entry>();
             HoldThreshold = 0.3f;
             HoldReducePerClick = 0.05f;
             EntrySelection = 0;
             ChangePrepared = true;
             SectionPast = new int[100];
             MenuPast = new int[100];
-            EntryAccess = new int[MaxEntries];
-            MenuTotalEntries = new int[MaxSections, MaxMenus];
-            MenuTitles = new string[MaxSections, MaxMenus];
+            EntryAccess = new int[100];
             MenuOptions = new bool[MaxSections, MaxMenus];
             MenuOptionsSave = new bool[MaxSections, MaxMenus];
             MenuOptionsString = new string[MaxSections, MaxMenus];
-            MenuEntriesDraw = new string[MaxEntries];
-            MenuEntriesAccess = new string[MaxEntries];
-            MenuEntriesProgram = new string[MaxEntries];
-            MenuEntriesFile = new string[MaxEntries];
-            MenuEntriesCommand = new string[MaxEntries];
-            MenuEntriesPurpose = new int[MaxEntries];
-            MenuEntriesType = new int[MaxEntries];
-            MenuEntriesDestinationSection = new int[MaxEntries];
-            MenuEntriesDestinationMenu = new int[MaxEntries];
-            MenuEntriesRebuildOnChange = new bool[MaxEntries];
-            MenuEntriesLocked = new bool[MaxEntries];
-            MenuEntriesShowFuture = new bool[MaxEntries];
-            MenuEntriesShowModel = new bool[MaxEntries];
-            MenuEntriesIntOptionSegment = new int[MaxEntries];
-            MenuEntriesIntPosition = new Vector3[MaxEntries];
-            MenuEntriesIntMinimum = new int[MaxEntries];
-            MenuEntriesIntMaximum = new int[MaxEntries];
-            MenuEntriesStringPosition = new Vector3[MaxEntries];
             MenuOptionsLocations = new List<int>();
             DataManagement("Roms", true);
             DataManagement("Emulators", true);
@@ -187,6 +146,7 @@ namespace RetroMap
         protected override void Update(GameTime gameTime)
         {
             GamePadCapabilities capabilities = GamePad.GetCapabilities(PlayerIndex.One);
+            Entry CE = MenuEntriesList[EntrySelection];
             TextScale = new Vector2((float)MenuStorageIntStatic[0, 1, 3] / 72, (float)MenuStorageIntStatic[0, 1, 3] / 72);
             TextSpread = (MenuStorageIntStatic[0, 1, 3] / 2 * 2.75f);
             if (MenuStorageIntStatic[0, 2, 0] == 1)
@@ -260,18 +220,22 @@ namespace RetroMap
             }
             if (LeftPressed == 1)
             {
-                if (MenuEntriesType[EntrySelection] == 5 || MenuEntriesType[EntrySelection] == 6 || MenuEntriesType[EntrySelection] == 7)
+                if (CE.Type == 5 || CE.Type == 6 || CE.Type == 7)
                 {
-                    Vector3 IntPosition = MenuEntriesIntPosition[EntrySelection];
+                    Vector3 IntPosition = CE.IntPosition;
                     MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z]--;
-                    if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] < MenuEntriesIntMinimum[EntrySelection])
+                    if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] < CE.Minimum)
                     {
-                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = MenuEntriesIntMaximum[EntrySelection];
+                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = CE.Maximum;
                     }
                     MenuOptionsSave[SectionSelection, MenuSelection] = true;
-                    if (MenuEntriesRebuildOnChange[EntrySelection]) RebuildMenu(SectionSelection, MenuSelection);
+                    if (CE.RebuildOnChange)
+                    {
+                        ClearMenu();
+                        RebuildMenu(SectionSelection, MenuSelection);
+                    }
                 }
-                if (MenuEntriesType[EntrySelection] == 9 || MenuEntriesType[EntrySelection] == 10)
+                if (SectionSelection == 2)
                 {
                     if (ExplorerString != "")
                     {
@@ -309,20 +273,24 @@ namespace RetroMap
             }
             if (RightPressed == 1)
             {
-                if (MenuEntriesType[EntrySelection] == 5 || MenuEntriesType[EntrySelection] == 6 || MenuEntriesType[EntrySelection] == 7)
+                if (CE.Type == 5 || CE.Type == 6 || CE.Type == 7)
                 {
-                    Vector3 IntPosition = MenuEntriesIntPosition[EntrySelection];
+                    Vector3 IntPosition = CE.IntPosition;
                     MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z]++;
-                    if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] > MenuEntriesIntMaximum[EntrySelection])
+                    if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] > CE.Maximum)
                     {
-                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = MenuEntriesIntMinimum[EntrySelection];
+                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = CE.Minimum;
                     }
                     MenuOptionsSave[SectionSelection, MenuSelection] = true;
-                    if (MenuEntriesRebuildOnChange[EntrySelection]) RebuildMenu(SectionSelection, MenuSelection);
+                    if (CE.RebuildOnChange)
+                    {
+                        ClearMenu();
+                        RebuildMenu(SectionSelection, MenuSelection);
+                    }
                 }
-                if (MenuEntriesType[EntrySelection] == 9)
+                if (CE.Type == 9)
                 {
-                    ExplorerString = MenuEntriesAccess[EntrySelection];
+                    ExplorerString = CE.Title;
                     ExplorerLastEntry = EntrySelection;
                     EntrySelection = 0;
                     ChangePrepared = true;
@@ -330,7 +298,7 @@ namespace RetroMap
             }
             if (ConfirmPressed == 1)
             {
-                if (MenuEntriesType[EntrySelection] == 0)
+                if (CE.Type == 0)
                 {
                     SectionPast[MenuDepth] = SectionSelection;
                     MenuPast[MenuDepth] = MenuSelection;
@@ -338,65 +306,55 @@ namespace RetroMap
                     MenuLast = MenuSelection;
                     EntryAccess[MenuDepth] = EntrySelection;
                     MenuDepth++;
-                    SectionSelection = MenuEntriesDestinationSection[EntrySelection];
-                    MenuSelection = MenuEntriesDestinationMenu[EntrySelection];
+                    SectionSelection = CE.DestinationSection;
+                    MenuSelection = CE.DestinationMenu;
                     EntrySelection = 0;
                     ChangePrepared = true;
                 }
-                else if (MenuEntriesType[EntrySelection] == 2)
+                else if (CE.Type == 2)
                 {
-                    if (File.Exists(MenuEntriesProgram[EntrySelection]) || Directory.Exists(MenuEntriesProgram[EntrySelection]))
+                    if (File.Exists(CE.Program))
                     {
-                        if (File.Exists(MenuEntriesProgram[EntrySelection]))
-                        {
-                            //MenuEntriesAccess[EntrySelection] = "File Found! File: " + MenuEntriesProgram[EntrySelection];
-                            ExecuteCommand(MenuEntriesCommand[EntrySelection]);
-                        }
-                        if (Directory.Exists(MenuEntriesProgram[EntrySelection]))
-                        {
-                            MenuEntriesAccess[EntrySelection] = "Directory Found! Directory: " + MenuEntriesProgram[EntrySelection];
-                        }
-                    }
-                    else
-                    {
-                        MenuEntriesAccess[EntrySelection] = "File/Directory Not Found! " + MenuEntriesProgram[EntrySelection];
+                        ExecuteCommand(CE.Command);
                     }
                 }
-                else if (MenuEntriesType[EntrySelection] == 3)
+                else if (CE.Type == 3)
                 {
                     Exit();
                 }
-                else if (MenuEntriesType[EntrySelection] == 5 || MenuEntriesType[EntrySelection] == 6 || MenuEntriesType[EntrySelection] == 7)
+                else if (CE.Type == 5 || CE.Type == 6 || CE.Type == 7)
                 {
                     if (SectionSelection == 0 && MenuSelection == 4)
                     {
-                        Vector3 IntPosition = MenuEntriesIntPosition[0];
+                        Vector3 IntPosition = MenuEntriesList[0].IntPosition;
                         int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        IntPosition = MenuEntriesIntPosition[1];
+                        IntPosition = MenuEntriesList[1].IntPosition;
                         int IntStatic2 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
                         ApplyGraphics(MenuDisplayMode[IntStatic].Width, MenuDisplayMode[IntStatic].Height, IntStatic2);
-                        IntPosition = MenuEntriesIntPosition[2];
+                        IntPosition = MenuEntriesList[2].IntPosition;
                         int IntStatic3 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        IntPosition = MenuEntriesIntPosition[3];
+                        IntPosition = MenuEntriesList[3].IntPosition;
                         int IntStatic4 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        List<string> VideoStorage = new List<string>();
-                        VideoStorage.Add(IntStatic.ToString());
-                        VideoStorage.Add(IntStatic2.ToString());
-                        VideoStorage.Add(IntStatic3.ToString());
-                        VideoStorage.Add(IntStatic4.ToString());
+                        List<string> VideoStorage = new List<string>
+                        {
+                            IntStatic.ToString(),
+                            IntStatic2.ToString(),
+                            IntStatic3.ToString(),
+                            IntStatic4.ToString()
+                        };
                         WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
                     }
                 }
-                else if (MenuEntriesType[EntrySelection] == 8)
+                else if (CE.Type == 8)
                 {
                     SectionPast[MenuDepth] = SectionSelection;
                     MenuPast[MenuDepth] = MenuSelection;
                     SectionLast = SectionSelection;
                     MenuLast = MenuSelection;
                     EntryAccess[MenuDepth] = EntrySelection;
-                    ExplorerPurpose = MenuEntriesPurpose[EntrySelection];
-                    ExplorerString = MenuEntriesFile[EntrySelection];
-                    ExplorerLocation = MenuEntriesStringPosition[EntrySelection];
+                    ExplorerPurpose = CE.Purpose;
+                    ExplorerString = CE.File;
+                    ExplorerLocation = CE.StringPosition;
                     MenuDepth++;
                     SectionSelection = 2;
                     MenuSelection = 0;
@@ -407,9 +365,9 @@ namespace RetroMap
                     }
                     ChangePrepared = true;
                 }
-                else if (MenuEntriesType[EntrySelection] == 9 && ExplorerPurpose == 0 || MenuEntriesType[EntrySelection] == 10 && ExplorerPurpose == 1)
+                else if (CE.Type == 9 && ExplorerPurpose == 0 || CE.Type == 10 && ExplorerPurpose == 1)
                 {
-                    MenuStorageStringStatic[(int)ExplorerLocation.X, (int)ExplorerLocation.Y, (int)ExplorerLocation.Z] = MenuEntriesAccess[EntrySelection];
+                    MenuStorageStringStatic[(int)ExplorerLocation.X, (int)ExplorerLocation.Y, (int)ExplorerLocation.Z] = CE.Title;
                     SectionLast = SectionSelection;
                     MenuLast = MenuSelection;
                     MenuDepth--;
@@ -452,19 +410,19 @@ namespace RetroMap
                 EntrySelection--;
                 if (EntrySelection < 0)
                 {
-                    EntrySelection = MenuTotalEntries[SectionSelection, MenuSelection] - 1;
-                    TextOffset += TextSpread * (MenuTotalEntries[SectionSelection, MenuSelection] - 1);
+                    EntrySelection = MenuEntriesList.Count - 1;
+                    TextOffset += TextSpread * (MenuEntriesList.Count - 1);
                 }
                 else
                 {
                     TextOffset -= TextSpread;
                 }
-                while (MenuEntriesLocked[EntrySelection])
+                while (MenuEntriesList[EntrySelection].Locked)
                 {
                     EntrySelection--;
                     if (EntrySelection < 0)
                     {
-                        EntrySelection = MenuTotalEntries[SectionSelection, MenuSelection] - 1;
+                        EntrySelection = MenuEntriesList.Count - 1;
                     }
                 }
                 UpPrepared = false;
@@ -472,25 +430,26 @@ namespace RetroMap
             if (DownPrepared)
             {
                 EntrySelection++;
-                if (EntrySelection == MenuTotalEntries[SectionSelection, MenuSelection])
+                if (EntrySelection == MenuEntriesList.Count)
                 {
                     EntrySelection = 0;
-                    TextOffset -= TextSpread * (MenuTotalEntries[SectionSelection, MenuSelection] - 1);
+                    TextOffset -= TextSpread * (MenuEntriesList.Count - 1);
                 }
                 else
                 {
                     TextOffset += TextSpread;
                 }
-                while (MenuEntriesLocked[EntrySelection])
+                while (MenuEntriesList[EntrySelection].Locked)
                 {
                     EntrySelection++;
-                    if (EntrySelection == MenuTotalEntries[SectionSelection, MenuSelection])
+                    if (EntrySelection == MenuEntriesList.Count)
                     {
                         EntrySelection = 0;
                     }
                 }
                 DownPrepared = false;
             }
+            CE = MenuEntriesList[EntrySelection];
             if (ChangePrepared)
             {
                 if (MenuOptionsSave[SectionLast, MenuLast])
@@ -498,7 +457,7 @@ namespace RetroMap
                     if (SectionLast == 0 && MenuLast == 3)
                     {
                         List<string> SaveList = new List<string>();
-                        for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
+                        for (CX = 0; CX < MenuEntriesList.Count; CX++)
                         {
                             SaveList.Add(MenuStorageIntStatic[0, 0, CX].ToString());
                         }
@@ -507,7 +466,7 @@ namespace RetroMap
                     if (SectionLast == 0 && MenuLast == 8)
                     {
                         List<string> SaveList = new List<string>();
-                        for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
+                        for (CX = 0; CX < MenuEntriesList.Count; CX++)
                         {
                             SaveList.Add(MenuStorageIntStatic[0, 2, CX].ToString());
                         }
@@ -516,7 +475,7 @@ namespace RetroMap
                     if (SectionLast == 0 && MenuLast == 9)
                     {
                         List<string> SaveList = new List<string>();
-                        for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
+                        for (CX = 0; CX < MenuEntriesList.Count; CX++)
                         {
                             SaveList.Add(MenuStorageIntStatic[0, 3, CX].ToString());
                         }
@@ -526,7 +485,7 @@ namespace RetroMap
                 if (SectionLast == 0 && MenuLast == 12 && SectionSelection != 2)
                 {
                     List<string> SaveList = new List<string>();
-                    for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
+                    for (CX = 0; CX < MenuEntriesList.Count; CX++)
                     {
                         if (CX == 0)
                         {
@@ -545,7 +504,7 @@ namespace RetroMap
                 if (SectionLast == 0 && MenuLast == 13 && SectionSelection != 2)
                 {
                     List<string> SaveList = new List<string>();
-                    for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
+                    for (CX = 0; CX < MenuEntriesList.Count; CX++)
                     {
                         if (CX == 0)
                         {
@@ -564,7 +523,7 @@ namespace RetroMap
                 if (SectionLast == 0 && MenuLast == 14 && SectionSelection != 2)
                 {
                     List<string> SaveList = new List<string>();
-                    for (CX = 0; CX < MenuTotalEntries[SectionLast, MenuLast]; CX++)
+                    for (CX = 0; CX < MenuEntriesList.Count; CX++)
                     {
                         if (CX == 0)
                         {
@@ -580,6 +539,7 @@ namespace RetroMap
                     }
                     WriteToFile(RootConfig + @"\Backgrounds.txt", SaveList);
                 }
+                ClearMenu();
                 RebuildMenu(SectionSelection, MenuSelection);
                 ChangePrepared = false;
             }
@@ -588,108 +548,21 @@ namespace RetroMap
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(new Color(0f, 0f, 0f, 1f));
-            spriteBatch.Begin();
-            spriteBatch.Draw(background, new Rectangle(0, 0, CurrentWidth, CurrentHeight), Color.White);
-            var fps = 1 / gameTime.ElapsedGameTime.TotalSeconds;
-            Window.Title = fps.ToString();
-            spriteBatch.End();
-            if (false)
+            if (MenuStorageIntStatic[0, 1, 2] != 0)
             {
-                Matrix matrix = Matrix.CreateRotationX(MathHelper.ToRadians(70)) *
-                Matrix.CreateRotationY(MathHelper.ToRadians(0)) *
-                Matrix.CreateScale(1, 1, 0);
-
-                spriteBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, null, matrix);
-                spriteBatch.Draw(background, new Rectangle(0, 0, CurrentWidth * 1, CurrentHeight * 1), Color.White);
+                spriteBatch.Begin();
+                spriteBatch.Draw(background, new Rectangle(0, 0, CurrentWidth, CurrentHeight), Color.White);
                 spriteBatch.End();
             }
-            spriteBatch.Begin();
-            for (int i = 0; i < MenuTotalEntries[SectionSelection, MenuSelection]; i++)
+            else
             {
-                MenuEntriesDraw[i] = "";
-                if (i == EntrySelection)
-                {
-                    if (DebugMode)
-                    {
-                        MenuEntriesDraw[i] += "|" + SectionSelection + "|" + MenuSelection + "|" + EntrySelection + "| ";
-                    }
-                    else
-                    {
-                        MenuEntriesDraw[i] += ">>> ";
-                    }
-                }
-                MenuEntriesDraw[i] += MenuEntriesAccess[i];
-                if (MenuEntriesType[i] == 5)
-                {
-                    Vector3 IntPosition = MenuEntriesIntPosition[i];
-                    int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                    MenuEntriesDraw[i] += "" + IntStatic;
-                }
-                if (MenuEntriesType[i] == 6)
-                {
-                    Vector3 IntPosition = MenuEntriesIntPosition[i];
-                    int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                    string[] ToggleString = new string[2];
-                    ToggleString[0] = "Off";
-                    ToggleString[1] = "On";
-                    MenuEntriesDraw[i] += "" + ToggleString[IntStatic];
-                }
-                if (MenuEntriesType[i] == 7)
-                {
-                    Vector3 IntPosition = MenuEntriesIntPosition[i];
-                    int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                    if (SectionSelection == 0 && MenuSelection == 3)
-                    {
-                        if (IntStatic < EmulatorExes.Count)
-                        {
-                            MenuEntriesDraw[i] += " | " + EmulatorExes[IntStatic];
-                        }
-                        else
-                        {
-                            if (EmulatorExes.Count == 0)
-                            {
-                                MenuEntriesDraw[i] += " | Error: No Emulators Found";
-                            }
-                            else
-                            {
-                                MenuEntriesDraw[i] += " | Error: Emulator # is too high!";
-                            }
-                        }
-                    }
-                    else if (SectionSelection == 0 && MenuSelection == 4 && i == 0)
-                    {
-                        MenuEntriesDraw[i] += "" + MenuDisplayMode[IntStatic].Width + "x" + MenuDisplayMode[IntStatic].Height;
-                    }
-                    else if (SectionSelection == 0 && MenuSelection == 4 && i == 1)
-                    {
-                        MenuEntriesDraw[i] += "" + MenuWindowMode[IntStatic];
-                    }
-                    else if (SectionSelection == 0 && MenuSelection == 4 && i == 2)
-                    {
-                        if (IntStatic == 0)
-                        {
-                            MenuEntriesDraw[i] += "" + "Empty Background";
-                        }
-                        else if (IntStatic == 1)
-                        {
-                            MenuEntriesDraw[i] += "" + "Current Desktop Background";
-                        }
-                        else
-                        {
-                            MenuEntriesDraw[i] += "" + BackgroundImages[IntStatic - 2];
-                        }
-                    }
-                    else
-                    {
-                        MenuEntriesDraw[i] += "" + IntStatic;
-                    }
-                }
-                if (MenuEntriesType[i] == 8 || MenuEntriesType[i] == 11)
-                {
-                    Vector3 StrPosition = MenuEntriesStringPosition[i];
-                    string StrStatic = MenuStorageStringStatic[(int)StrPosition.X, (int)StrPosition.Y, (int)StrPosition.Z];
-                    MenuEntriesDraw[i] += "" + StrStatic;
-                }
+                background = null;
+            }
+            var fps = 1 / gameTime.ElapsedGameTime.TotalSeconds;
+            Window.Title = fps.ToString();
+            spriteBatch.Begin();
+            for (int i = 0; i < MenuEntriesList.Count; i++)
+            {
                 float TextOrigin = CurrentHeight / 2;
                 float TextListY = i * TextSpread;
                 float TextEntryY = EntrySelection * TextSpread;
@@ -698,8 +571,93 @@ namespace RetroMap
                 float TextY = TextOrigin + TextFinalY + TextOffset;
                 if (TextY > (-TextSpread) && TextY < CurrentHeight + TextSpread)
                 {
+                    Entry CE = MenuEntriesList[i];
+                    MenuEntriesDraw = "";
+                    if (i == EntrySelection)
+                    {
+                        if (DebugMode)
+                        {
+                            MenuEntriesDraw += "|" + SectionSelection + "|" + MenuSelection + "|" + EntrySelection + "| ";
+                        }
+                        else
+                        {
+                            MenuEntriesDraw += ">>> ";
+                        }
+                    }
+                    MenuEntriesDraw += CE.Title;
+                    if (CE.Type == 5)
+                    {
+                        Vector3 IntPosition = CE.IntPosition;
+                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
+                        MenuEntriesDraw += "" + IntStatic;
+                    }
+                    if (CE.Type == 6)
+                    {
+                        Vector3 IntPosition = CE.IntPosition;
+                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
+                        string[] ToggleString = new string[2];
+                        ToggleString[0] = "Off";
+                        ToggleString[1] = "On";
+                        MenuEntriesDraw += "" + ToggleString[IntStatic];
+                    }
+                    if (CE.Type == 7)
+                    {
+                        Vector3 IntPosition = CE.IntPosition;
+                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
+                        if (SectionSelection == 0 && MenuSelection == 3)
+                        {
+                            if (IntStatic < EmulatorExes.Count)
+                            {
+                                MenuEntriesDraw += " | " + EmulatorExes[IntStatic];
+                            }
+                            else
+                            {
+                                if (EmulatorExes.Count == 0)
+                                {
+                                    MenuEntriesDraw += " | Error: No Emulators Found";
+                                }
+                                else
+                                {
+                                    MenuEntriesDraw += " | Error: Emulator # is too high!";
+                                }
+                            }
+                        }
+                        else if (SectionSelection == 0 && MenuSelection == 4 && i == 0)
+                        {
+                            MenuEntriesDraw += "" + MenuDisplayMode[IntStatic].Width + "x" + MenuDisplayMode[IntStatic].Height;
+                        }
+                        else if (SectionSelection == 0 && MenuSelection == 4 && i == 1)
+                        {
+                            MenuEntriesDraw += "" + MenuWindowMode[IntStatic];
+                        }
+                        else if (SectionSelection == 0 && MenuSelection == 4 && i == 2)
+                        {
+                            if (IntStatic == 0)
+                            {
+                                MenuEntriesDraw += "" + "Empty Background";
+                            }
+                            else if (IntStatic == 1)
+                            {
+                                MenuEntriesDraw += "" + "Current Desktop Background";
+                            }
+                            else
+                            {
+                                MenuEntriesDraw += "" + BackgroundImages[IntStatic - 2];
+                            }
+                        }
+                        else
+                        {
+                            MenuEntriesDraw += "" + IntStatic;
+                        }
+                    }
+                    if (CE.Type == 8 || CE.Type == 11)
+                    {
+                        Vector3 StrPosition = CE.StringPosition;
+                        string StrStatic = MenuStorageStringStatic[(int)StrPosition.X, (int)StrPosition.Y, (int)StrPosition.Z];
+                        MenuEntriesDraw += "" + StrStatic;
+                    }
                     Vector2 TextPosition = new Vector2(TextX, TextY);
-                    DrawString(font, MenuEntriesDraw[i], TextPosition, 0, 0, Color.White);
+                    DrawString(font, MenuEntriesDraw, TextPosition, 0, 0, Color.White);
                 }
             }
             DrawString(font, TimeString, new Vector2(CurrentWidth, 0), 2, 0, Color.White);
@@ -816,11 +774,20 @@ namespace RetroMap
             }
         }
 
+        void ClearMenu()
+        {
+            while (MenuEntriesList.Count > 0)
+            {
+                MenuEntriesList[0] = null;
+                MenuEntriesList.RemoveAt(0);
+            }
+        }
         void RebuildMenu(int X, int Y)
         {
             CX = X;
             CY = Y;
             CZ = 0;
+            RebuildStop = false;
             MenuOptionsLocations.Clear();
             if (CX == 0)
             {
@@ -828,7 +795,7 @@ namespace RetroMap
                 {
                     case 0:
                         MenuSetup("Debug Menu");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                                 case 0: EntryLink("Console Select", 0, 2, false, true); break;
@@ -839,7 +806,7 @@ namespace RetroMap
                         break;
                     case 1:
                         MenuSetup("Settings Menu");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                                 case 0: EntryLink("Graphics Settings", 0, 4, false, true); break;
@@ -851,8 +818,7 @@ namespace RetroMap
                         MenuSetup("Systems Menu");
                         DataManagement("Roms", false);
                         DataManagement("System", false);
-                        MenuTotalEntries[0, 2] = MenuStorageIntStatic[0, 6, 0];
-                        for (CZ = 0; CZ < MenuTotalEntries[0, 2]; CZ++)
+                        for (CZ = 0; CZ < MenuStorageIntStatic[0, 6, 0]; CZ++)
                         {
                             EntryLink(new DirectoryInfo(@Systems[CZ]).Name, 1, CZ, false, true);
                         }
@@ -860,14 +826,14 @@ namespace RetroMap
                         break;
                     case 3:
                         MenuSetup("Emulators Menu"); DataManagement("Emulators", false); DataManagement("System", false);
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: if (CZ < Systems.Count) EntryOption(new DirectoryInfo(@Systems[CZ]).Name, new Vector3(0, 0, CZ), 2, 0, EmulatorExes.Count - 1, false); else MenuEnd(); break;
                             }
                         break;
                     case 4:
                         MenuSetup("Settings"); DataManagement("Backgrounds", false);
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                                 case 0: EntryOption("Resolution: ", new Vector3(0, 1, 0), 2, 0, MenuResolutionDisplay.Count - 1, false); break;
@@ -878,21 +844,21 @@ namespace RetroMap
                         break;
                     case 5:
                         MenuSetup("Audio");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                             }
                         break;
                     case 6:
                         MenuSetup("Controls");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                             }
                         break;
                     case 7:
                         MenuSetup("Options");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                                 case 0: EntryLink("Clock Settings", 0, 8, false, true); break;
@@ -904,7 +870,7 @@ namespace RetroMap
                         break;
                     case 8:
                         MenuSetup("Clock");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                                 case 0: EntryOption("Clock Toggle: ", new Vector3(0, 2, 0), 1, 0, 1, false); break;
@@ -914,7 +880,7 @@ namespace RetroMap
                         break;
                     case 9:
                         MenuSetup("Slide");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                                 case 0: EntryOption("Slide Toggle: ", new Vector3(0, 3, 0), 1, 0, 1, false); break;
@@ -923,7 +889,7 @@ namespace RetroMap
                         break;
                     case 10:
                         MenuSetup("Debug Functions");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                                 case 0: EntryExplorer("File Explorer Test, Folder. Result: ", "", 0, new Vector3(0, 0, 0)); break;
@@ -932,7 +898,7 @@ namespace RetroMap
                         break;
                     case 11:
                         MenuSetup("Path Hub");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                                 case 0: EntryLink("Rom Folder Paths", 0, 12, false, true); break;
@@ -972,7 +938,7 @@ namespace RetroMap
                         break;
                     case 14:
                         MenuSetup("Background Paths");
-                        for (CZ = 0; CZ < MenuStorageIntStatic[0,4,0] + 1; CZ++)
+                        for (CZ = 0; CZ < MenuStorageIntStatic[0, 4, 0] + 1; CZ++)
                         {
                             if (CZ == 0)
                             {
@@ -987,7 +953,7 @@ namespace RetroMap
                         break;
                     default:
                         MenuSetup("Placeholder");
-                        for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++) switch (CZ)
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
                             }
@@ -999,7 +965,7 @@ namespace RetroMap
                 MenuSetup(Systems[CY]);
                 string[] SystemsGames = Directory.GetFiles(Systems[CY]);
                 int SystemsGamesAmount = SystemsGames.Length;
-                for (CZ = 0; CZ < MenuTotalEntries[CX, CY]; CZ++)
+                for (CZ = 0; !RebuildStop; CZ++)
                 {
                     if (EmulatorExes.Count != 0)
                     {
@@ -1012,7 +978,6 @@ namespace RetroMap
                         else MenuEnd();
                     }
                 }
-                int Test = 0;
             }
             else if (CX == 2)
             {
@@ -1061,87 +1026,88 @@ namespace RetroMap
             base.Initialize();
         }
 
-        void MenuSetup(string MenuTitle)
+        void MenuSetup(string Title)
         {
-            MenuTitles[CX, CY] = MenuTitle;
-            MenuTotalEntries[CX, CY] = MaxEntries;
+            MenuTitle = Title;
         }
         void MenuEnd()
         {
             if (CZ == 0)
             {
-                MenuTotalEntries[CX, CY] = 1;
                 EntryText("Nothing here!");
             }
-            else
-            {
-                MenuTotalEntries[CX, CY] = CZ;
-            }
+            RebuildStop = true;
         }
 
         void EntryLink(string EntryString, int SectionDestination, int MenuDestination, bool Locked, bool Future)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesDestinationMenu[CZ] = MenuDestination;
-            MenuEntriesDestinationSection[CZ] = SectionDestination;
-            MenuEntriesLocked[CZ] = Locked;
-            MenuEntriesShowFuture[CZ] = Future;
-            MenuEntriesType[CZ] = 0;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    DestinationMenu = MenuDestination,
+                    DestinationSection = SectionDestination,
+                    Locked = Locked,
+                    ShowFuture = Future,
+                    Type = 0
+                });
         }
         void EntryText(string EntryString)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesType[CZ] = 1;
-            MenuEntriesLocked[CZ] = false;
-            MenuEntriesShowFuture[CZ] = false;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    Type = 1
+                });
         }
         void EntryProgram(string EntryString, string ProgramString, string FileString, string CommandString)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesProgram[CZ] = ProgramString;
-            MenuEntriesFile[CZ] = FileString;
-            MenuEntriesCommand[CZ] = CommandString.Replace("<PROG>", ProgramString).Replace("<FILE>", FileString);
-            MenuEntriesLocked[CZ] = false;
-            MenuEntriesShowFuture[CZ] = false;
-            MenuEntriesType[CZ] = 2;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    Program = ProgramString,
+                    File = FileString,
+                    Command = CommandString.Replace("<PROG>", ProgramString).Replace("<FILE>", FileString),
+                    Type = 2
+                });
         }
         void EntryExit(string EntryString)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesType[CZ] = 3;
-            MenuEntriesLocked[CZ] = false;
-            MenuEntriesShowFuture[CZ] = false;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    Type = 3
+                });
         }
         void EntryBack(string EntryString)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesType[CZ] = 4;
-            MenuEntriesLocked[CZ] = false;
-            MenuEntriesShowFuture[CZ] = false;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    Type = 4
+                });
         }
         void EntryOption(string EntryString, Vector3 VariableLocation, int OptionType, int MinimumIntAllowed, int MaximumIntAllowed, bool RebuildOnChange)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesLocked[CZ] = false;
-            MenuEntriesShowFuture[CZ] = false;
-            MenuEntriesRebuildOnChange[CZ] = RebuildOnChange;
             switch (OptionType)
             {
                 case 0:
-                    MenuEntriesType[CZ] = 5;
+                    OptionType = 5;
                     break;
                 case 1:
-                    MenuEntriesType[CZ] = 6;
+                    OptionType = 6;
                     break;
                 case 2:
-                    MenuEntriesType[CZ] = 7;
+                    OptionType = 7;
                     break;
                 default:
-                    MenuEntriesType[CZ] = 5;
+                    OptionType = 5;
                     break;
             }
-
-            MenuEntriesIntOptionSegment[CZ] = 1;
             MenuOptions[CX, CY] = true;
             MenuOptionsSave[CX, CY] = false;
             MenuOptionsLocations.Add(CZ);
@@ -1149,41 +1115,56 @@ namespace RetroMap
             {
                 MaximumIntAllowed = MinimumIntAllowed;
             }
-            MenuEntriesIntPosition[CZ] = VariableLocation;
-            MenuEntriesIntMinimum[CZ] = MinimumIntAllowed;
-            MenuEntriesIntMaximum[CZ] = MaximumIntAllowed;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    Type = OptionType,
+                    Minimum = MinimumIntAllowed,
+                    Maximum = MaximumIntAllowed,
+                    IntPosition = VariableLocation,
+                    RebuildOnChange = RebuildOnChange,
+                });
         }
         void EntryExplorer(string EntryString, string StartingDirectory, int Purpose, Vector3 Location)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesLocked[CZ] = false;
-            MenuEntriesShowFuture[CZ] = false;
-            MenuEntriesType[CZ] = 8;
-            MenuEntriesFile[CZ] = StartingDirectory;
-            MenuEntriesPurpose[CZ] = Purpose;
-            MenuEntriesStringPosition[CZ] = Location;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    File = StartingDirectory,
+                    Purpose = Purpose,
+                    StringPosition = Location,
+                    Type = 8
+                });
         }
         void EntryExplorerFolder(string EntryString)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesLocked[CZ] = false;
-            MenuEntriesShowFuture[CZ] = false;
-            MenuEntriesType[CZ] = 9;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    Type = 9
+                });
         }
         void EntryExplorerFile(string EntryString)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesLocked[CZ] = false;
-            MenuEntriesShowFuture[CZ] = false;
-            MenuEntriesType[CZ] = 10;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    Type = 10
+                });
         }
         void EntryString(string EntryString, Vector3 Location)
         {
-            MenuEntriesAccess[CZ] = EntryString;
-            MenuEntriesLocked[CZ] = false;
-            MenuEntriesShowFuture[CZ] = false;
-            MenuEntriesType[CZ] = 11;
-            MenuEntriesStringPosition[CZ] = Location;
+            MenuEntriesList.Add(new Entry
+                {
+                    Title = EntryString,
+                    Number = CZ,
+                    StringPosition = Location,
+                    Type = 11
+                });
         }
 
         void DataManagement(string Element, bool OnBoot)
@@ -1227,8 +1208,10 @@ namespace RetroMap
                     }
                     else
                     {
-                        List<string> VideoStorage = new List<string>();
-                        VideoStorage.Add(0.ToString());
+                        List<string> VideoStorage = new List<string>
+                        {
+                            0.ToString()
+                        };
                         MenuStorageIntStatic[0, 6, 0] = 0;
                         WriteToFile(RootConfig + @"\Roms.txt", VideoStorage);
                     }
@@ -1275,8 +1258,10 @@ namespace RetroMap
                     }
                     else
                     {
-                        List<string> VideoStorage = new List<string>();
-                        VideoStorage.Add(0.ToString());
+                        List<string> VideoStorage = new List<string>
+                        {
+                            0.ToString()
+                        };
                         MenuStorageIntStatic[0, 5, 0] = 0;
                         WriteToFile(RootConfig + @"\Emulators.txt", VideoStorage);
                     }
@@ -1338,7 +1323,7 @@ namespace RetroMap
                         }
                         for (int i = 0; i < MenuStorageIntStatic[0, 4, 0]; i++)
                         {
-                            if (VideoStorage.Count > i+1)
+                            if (VideoStorage.Count > i + 1)
                             {
                                 if (VideoStorage[i + 1] != null)
                                 {
@@ -1357,8 +1342,10 @@ namespace RetroMap
                     }
                     else
                     {
-                        List<string> VideoStorage = new List<string>();
-                        VideoStorage.Add(0.ToString());
+                        List<string> VideoStorage = new List<string>
+                        {
+                            0.ToString()
+                        };
                         MenuStorageIntStatic[0, 4, 0] = 0;
                         WriteToFile(RootConfig + @"\Backgrounds.txt", VideoStorage);
                     }
@@ -1405,10 +1392,12 @@ namespace RetroMap
                     }
                     else
                     {
-                        List<string> VideoStorage = new List<string>();
-                        VideoStorage.Add(1.ToString());
-                        VideoStorage.Add(0.ToString());
-                        VideoStorage.Add(1.ToString());
+                        List<string> VideoStorage = new List<string>
+                        {
+                            1.ToString(),
+                            0.ToString(),
+                            1.ToString()
+                        };
                         MenuStorageIntStatic[0, 2, 0] = 1; //Controls Whether The Clock Will Be Shown
                         MenuStorageIntStatic[0, 2, 1] = 0; //Controls Whether The Clock Will Show 12 Hour Time or 24 Hour Time
                         MenuStorageIntStatic[0, 2, 2] = 1; //Controls Whether The Clock Will Show Seconds
@@ -1426,9 +1415,11 @@ namespace RetroMap
                     }
                     else
                     {
-                        List<string> VideoStorage = new List<string>();
-                        VideoStorage.Add(1.ToString());
-                        VideoStorage.Add(16.ToString());
+                        List<string> VideoStorage = new List<string>
+                        {
+                            1.ToString(),
+                            16.ToString()
+                        };
                         MenuStorageIntStatic[0, 3, 0] = 1; //Controls Whether Entries Will Slide When Entry Is Changed
                         MenuStorageIntStatic[0, 3, 1] = 16; //Controls How Fast Entries Slide
                         WriteToFile(RootConfig + @"\Slide.txt", VideoStorage);
@@ -1440,9 +1431,11 @@ namespace RetroMap
         public void ExecuteCommand(string Command)
         {
             Process process = new Process();
-            ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = "\"" + MenuEntriesProgram[EntrySelection] + "\"";
-            startInfo.Arguments = "\"" + Command + "\"";
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = "\"" + MenuEntriesList[EntrySelection].File + "\"",
+                Arguments = "\"" + Command + "\""
+            };
             process.StartInfo = startInfo;
             process.Start();
             process.WaitForExit();
@@ -1502,6 +1495,27 @@ namespace RetroMap
             {
                 return false;
             }
+        }
+
+        public class Entry
+        {
+            public string Title = "Placeholder";
+            public int Number = 0;
+            public string Program = ""; //Strings for program entries to use to open programs
+            public string File = ""; //Strings for program entries to use to open files within programs
+            public string Command = ""; //Strings for program entries to use to as commands
+            public int Purpose = 0;
+            public int Type = 1; //Types of entries
+            public int DestinationSection = 0; //Entry destination when clicked (Section)
+            public int DestinationMenu = 0; //Entry destination when clicked (Menu)
+            public Vector3 IntPosition = Vector3.Zero;
+            public Vector3 StringPosition = Vector3.Zero;
+            public int Minimum = 0;
+            public int Maximum = 0;
+            public bool RebuildOnChange = false;
+            public bool Locked = false; //Whether or not the menu entry is currently restricted
+            public bool ShowFuture = false; //Whether or not the entry shows its destination
+            public bool ShowModel = false;
         }
     }
 }
