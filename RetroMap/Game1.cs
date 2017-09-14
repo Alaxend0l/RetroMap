@@ -449,7 +449,6 @@ namespace RetroMap
                 }
                 DownPrepared = false;
             }
-            CE = MenuEntriesList[EntrySelection];
             if (ChangePrepared)
             {
                 if (MenuOptionsSave[SectionLast, MenuLast])
