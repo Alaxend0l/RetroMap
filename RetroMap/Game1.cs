@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Diagnostics;
-using System.Collections;
+using System.Runtime.InteropServices;
 
 namespace RetroMap
 {
@@ -41,6 +41,8 @@ namespace RetroMap
         int BackPressed;
         bool UpPrepared;
         bool DownPrepared;
+        bool LeftPrepared;
+        bool RightPrepared;
         bool ChangePrepared;
         float HoldThreshold;
         float HoldReducePerClick;
@@ -66,12 +68,17 @@ namespace RetroMap
         int ExplorerPurpose;
         string ExplorerString;
         int ExplorerLastEntry;
-        Vector3 ExplorerLocation;
+        string ExplorerLocation;
         List<Entry> MenuEntriesList;
         string MenuEntriesDraw; //Menu strings to be drawn on-screen
+        float TimeSinceChange;
 
-        int[,,] MenuStorageIntStatic;
-        string[,,] MenuStorageStringStatic;
+        Dictionary<string, int> StorageInt = new Dictionary<string, int>();
+        Dictionary<string, string> StorageString = new Dictionary<string, string>();
+
+        Dictionary<string, int> KeyboardInput = new Dictionary<string, int>();
+        Dictionary<string, int> GamepadInput = new Dictionary<string, int>();
+        Dictionary<string, int> MouseInput = new Dictionary<string, int>();
 
         int CX;
         int CY;
@@ -83,13 +90,14 @@ namespace RetroMap
             graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             Environment.CurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
-            this.IsFixedTimeStep = false;
-            this.graphics.SynchronizeWithVerticalRetrace = false;
+            //this.IsFixedTimeStep = false;
+            //this.graphics.SynchronizeWithVerticalRetrace = false;
         }
 
         protected override void Initialize()
         {
             DebugMode = false;
+            this.IsMouseVisible = true;
             Root = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + @"\RetroMap\";
             RootConfig = Root + @"Config\";
             Directory.CreateDirectory(Root);
@@ -99,8 +107,7 @@ namespace RetroMap
             EmulatorExes = new List<string>();
             MaxSections = 16;
             MaxMenus = 64;
-            MenuStorageIntStatic = new int[1, 256, 256];
-            MenuStorageStringStatic = new string[1, 256, 256];
+            StorageBuildOnBoot();
             MenuResolutionDisplay = new List<string>();
             MenuDisplayMode = new List<DisplayMode>();
             MenuWindowMode = new List<string> { "Window", "Fullscreen", "Borderless" };
@@ -124,10 +131,13 @@ namespace RetroMap
             DataManagement("Roms", true);
             DataManagement("Emulators", true);
             DataManagement("System", true);
+            DataManagement("BackgroundCustom", true);
             DataManagement("Backgrounds", true);
             DataManagement("Video", true);
             DataManagement("Clock", true);
             DataManagement("Slide", true);
+            DataManagement("Audio", true);
+            DataManagement("Font", true);
             RebuildMenu(SectionSelection, MenuSelection);
         }
 
@@ -145,15 +155,14 @@ namespace RetroMap
         }
         protected override void Update(GameTime gameTime)
         {
-            GamePadCapabilities capabilities = GamePad.GetCapabilities(PlayerIndex.One);
             Entry CE = MenuEntriesList[EntrySelection];
-            TextScale = new Vector2((float)MenuStorageIntStatic[0, 1, 3] / 72, (float)MenuStorageIntStatic[0, 1, 3] / 72);
-            TextSpread = (MenuStorageIntStatic[0, 1, 3] / 2 * 2.75f);
-            if (MenuStorageIntStatic[0, 2, 0] == 1)
+            TextScale = new Vector2((float)StorageInt["Font_Size"] / 72, (float)StorageInt["Font_Size"] / 72);
+            TextSpread = (StorageInt["Font_Size"] / 2 * 2.75f);
+            if (StorageInt["Clock_Toggle"] == 1)
             {
-                if (MenuStorageIntStatic[0, 2, 1] == 0)
+                if (StorageInt["Clock_Mode"] == 0)
                 {
-                    if (MenuStorageIntStatic[0, 2, 2] == 0)
+                    if (StorageInt["Clock_Seconds"] == 0)
                     {
                         TimeString = DateTime.Now.ToString("hh:mm tt", System.Globalization.DateTimeFormatInfo.InvariantInfo);
                     }
@@ -164,7 +173,7 @@ namespace RetroMap
                 }
                 else
                 {
-                    if (MenuStorageIntStatic[0, 2, 2] == 0)
+                    if (StorageInt["Clock_Seconds"] == 0)
                     {
                         TimeString = DateTime.Now.ToString("HH:mm", System.Globalization.DateTimeFormatInfo.InvariantInfo);
                     }
@@ -175,7 +184,7 @@ namespace RetroMap
                 }
                 string TimeStringSeconds = DateTime.Now.ToString("ss", System.Globalization.DateTimeFormatInfo.InvariantInfo);
                 int TimeSeconds = Int32.Parse(TimeStringSeconds);
-                if (TimeSeconds % 2 == 0 && MenuStorageIntStatic[0, 2, 2] == 0)
+                if (TimeSeconds % 2 == 1 && StorageInt["Clock_Seconds"] == 0)
                 {
                     TimeString = TimeString.Replace(":", " ");
                 }
@@ -184,32 +193,15 @@ namespace RetroMap
             {
                 TimeString = " ";
             }
-            if (MenuStorageIntStatic[0, 3, 0] == 1)
+            if (StorageInt["Slide_Toggle"] == 1)
             {
-                TextOffset = TextOffset - TextOffset * MenuStorageIntStatic[0, 3, 1] * (float)gameTime.ElapsedGameTime.TotalSeconds;
+                TextOffset = TextOffset - TextOffset * StorageInt["Slide_Speed"] * (float)gameTime.ElapsedGameTime.TotalSeconds;
             }
             else
             {
                 TextOffset = 0;
             }
-            if (capabilities.IsConnected)
-            {
-                UpPressed = PadFunction(Buttons.DPadUp, UpPressed);
-                DownPressed = PadFunction(Buttons.DPadDown, DownPressed);
-                LeftPressed = PadFunction(Buttons.DPadLeft, LeftPressed);
-                RightPressed = PadFunction(Buttons.DPadRight, RightPressed);
-                ConfirmPressed = PadFunction(Buttons.A, ConfirmPressed);
-                BackPressed = PadFunction(Buttons.B, BackPressed);
-            }
-            else
-            {
-                UpPressed = KeyFunction(Keys.W, UpPressed);
-                DownPressed = KeyFunction(Keys.S, DownPressed);
-                LeftPressed = KeyFunction(Keys.A, LeftPressed);
-                RightPressed = KeyFunction(Keys.D, RightPressed);
-                ConfirmPressed = KeyFunction(Keys.Enter, ConfirmPressed);
-                BackPressed = KeyFunction(Keys.Escape, BackPressed);
-            }
+            InputHandling();
             if (UpPressed == 1)
             {
                 UpPrepared = true;
@@ -220,13 +212,168 @@ namespace RetroMap
             }
             if (LeftPressed == 1)
             {
+                LeftPrepared = true;
+            }
+            if (RightPressed == 1)
+            {
+                RightPrepared = true;
+            }
+            if (ConfirmPressed == 1)
+            {
+                if (CE.Type == 0)
+                {
+                    SectionPast[MenuDepth] = SectionSelection;
+                    MenuPast[MenuDepth] = MenuSelection;
+                    SectionLast = SectionSelection;
+                    MenuLast = MenuSelection;
+                    EntryAccess[MenuDepth] = EntrySelection;
+                    MenuDepth++;
+                    SectionSelection = CE.DestinationSection;
+                    MenuSelection = CE.DestinationMenu;
+                    EntrySelection = 0;
+                    ChangePrepared = true;
+                }
+                else if (CE.Type == 2)
+                {
+                    if (File.Exists(CE.Program))
+                    {
+                        ExecuteCommand(CE.Command);
+                    }
+                }
+                else if (CE.Type == 3)
+                {
+                    Exit();
+                }
+                else if (CE.Type == 5 || CE.Type == 6 || CE.Type == 7)
+                {
+                    if (SectionSelection == 0 && MenuSelection == 4)
+                    {
+                        ApplyGraphics(MenuDisplayMode[StorageInt["Video_ScreenResolution"]].Width, MenuDisplayMode[StorageInt["Video_ScreenResolution"]].Height, StorageInt["Video_ScreenMode"]);
+                        List<string> VideoStorage = new List<string>
+                        {
+                            StorageInt["Video_ScreenResolution"].ToString(),
+                            StorageInt["Video_ScreenMode"].ToString(),
+                        };
+                        WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
+                    }
+                }
+                else if (CE.Type == 8)
+                {
+                    SectionPast[MenuDepth] = SectionSelection;
+                    MenuPast[MenuDepth] = MenuSelection;
+                    SectionLast = SectionSelection;
+                    MenuLast = MenuSelection;
+                    EntryAccess[MenuDepth] = EntrySelection;
+                    ExplorerPurpose = CE.Purpose;
+                    ExplorerString = CE.File;
+                    ExplorerLocation = CE.Key;
+                    MenuDepth++;
+                    SectionSelection = 2;
+                    MenuSelection = 0;
+                    EntrySelection = 0;
+                    if (ExplorerString != "")
+                    {
+                        EntrySelection = 1;
+                    }
+                    ChangePrepared = true;
+                }
+                else if (CE.Type == 9 && ExplorerPurpose == 0 || CE.Type == 10 && ExplorerPurpose == 1)
+                {
+                    StorageString[ExplorerLocation] = CE.Title;
+                    SectionLast = SectionSelection;
+                    MenuLast = MenuSelection;
+                    MenuDepth--;
+                    SectionSelection = SectionPast[MenuDepth];
+                    MenuSelection = MenuPast[MenuDepth];
+                    EntrySelection = EntryAccess[MenuDepth];
+                    ChangePrepared = true;
+                    MenuOptionsSave[SectionSelection, MenuSelection] = true;
+                }
+            }
+            if (BackPressed == 1)
+            {
+                if (MenuDepth != 0)
+                {
+                    SectionLast = SectionSelection;
+                    MenuLast = MenuSelection;
+                    MenuDepth--;
+                    SectionSelection = SectionPast[MenuDepth];
+                    MenuSelection = MenuPast[MenuDepth];
+                    EntrySelection = EntryAccess[MenuDepth];
+                    ChangePrepared = true;
+                }
+                else
+                {
+                    Exit();
+                }
+            }
+            if (UpPressed == 2 || DownPressed == 2 || LeftPressed == 2 || RightPressed == 2)
+            {
+                HoldCurrent += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                if (HoldCurrent >= HoldThreshold)
+                {
+                    if (UpPressed == 2) UpPrepared = true;
+                    if (DownPressed == 2) DownPrepared = true;
+                    if (LeftPressed == 2) LeftPrepared = true;
+                    if (RightPressed == 2) RightPrepared = true;
+                    HoldCurrent -= HoldReducePerClick;
+                }
+            }
+            else HoldCurrent = 0;
+            if (UpPrepared)
+            {
+                EntrySelection--;
+                if (EntrySelection < 0)
+                {
+                    EntrySelection = MenuEntriesList.Count - 1;
+                    TextOffset += TextSpread * (MenuEntriesList.Count - 1);
+                }
+                else
+                {
+                    TextOffset -= TextSpread;
+                }
+                while (MenuEntriesList[EntrySelection].Locked)
+                {
+                    EntrySelection--;
+                    if (EntrySelection < 0)
+                    {
+                        EntrySelection = MenuEntriesList.Count - 1;
+                    }
+                }
+                UpPrepared = false;
+                TimeSinceChange = 0;
+            }
+            if (DownPrepared)
+            {
+                EntrySelection++;
+                if (EntrySelection == MenuEntriesList.Count)
+                {
+                    EntrySelection = 0;
+                    TextOffset -= TextSpread * (MenuEntriesList.Count - 1);
+                }
+                else
+                {
+                    TextOffset += TextSpread;
+                }
+                while (MenuEntriesList[EntrySelection].Locked)
+                {
+                    EntrySelection++;
+                    if (EntrySelection == MenuEntriesList.Count)
+                    {
+                        EntrySelection = 0;
+                    }
+                }
+                DownPrepared = false;
+                TimeSinceChange = 0;
+            }
+            if (LeftPrepared)
+            {
                 if (CE.Type == 5 || CE.Type == 6 || CE.Type == 7)
                 {
-                    Vector3 IntPosition = CE.IntPosition;
-                    MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z]--;
-                    if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] < CE.Minimum)
+                    StorageInt[CE.Key]--;
+                    if (StorageInt[CE.Key] < CE.Minimum)
                     {
-                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = CE.Maximum;
+                        StorageInt[CE.Key] = CE.Maximum;
                     }
                     MenuOptionsSave[SectionSelection, MenuSelection] = true;
                     if (CE.RebuildOnChange)
@@ -270,16 +417,16 @@ namespace RetroMap
                         ChangePrepared = true;
                     }
                 }
+                LeftPrepared = false;
             }
-            if (RightPressed == 1)
+            if (RightPrepared)
             {
                 if (CE.Type == 5 || CE.Type == 6 || CE.Type == 7)
                 {
-                    Vector3 IntPosition = CE.IntPosition;
-                    MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z]++;
-                    if (MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] > CE.Maximum)
+                    StorageInt[CE.Key]++;
+                    if (StorageInt[CE.Key] > CE.Maximum)
                     {
-                        MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z] = CE.Minimum;
+                        StorageInt[CE.Key] = CE.Minimum;
                     }
                     MenuOptionsSave[SectionSelection, MenuSelection] = true;
                     if (CE.RebuildOnChange)
@@ -295,159 +442,7 @@ namespace RetroMap
                     EntrySelection = 0;
                     ChangePrepared = true;
                 }
-            }
-            if (ConfirmPressed == 1)
-            {
-                if (CE.Type == 0)
-                {
-                    SectionPast[MenuDepth] = SectionSelection;
-                    MenuPast[MenuDepth] = MenuSelection;
-                    SectionLast = SectionSelection;
-                    MenuLast = MenuSelection;
-                    EntryAccess[MenuDepth] = EntrySelection;
-                    MenuDepth++;
-                    SectionSelection = CE.DestinationSection;
-                    MenuSelection = CE.DestinationMenu;
-                    EntrySelection = 0;
-                    ChangePrepared = true;
-                }
-                else if (CE.Type == 2)
-                {
-                    if (File.Exists(CE.Program))
-                    {
-                        ExecuteCommand(CE.Command);
-                    }
-                }
-                else if (CE.Type == 3)
-                {
-                    Exit();
-                }
-                else if (CE.Type == 5 || CE.Type == 6 || CE.Type == 7)
-                {
-                    if (SectionSelection == 0 && MenuSelection == 4)
-                    {
-                        Vector3 IntPosition = MenuEntriesList[0].IntPosition;
-                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        IntPosition = MenuEntriesList[1].IntPosition;
-                        int IntStatic2 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        ApplyGraphics(MenuDisplayMode[IntStatic].Width, MenuDisplayMode[IntStatic].Height, IntStatic2);
-                        IntPosition = MenuEntriesList[2].IntPosition;
-                        int IntStatic3 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        IntPosition = MenuEntriesList[3].IntPosition;
-                        int IntStatic4 = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        List<string> VideoStorage = new List<string>
-                        {
-                            IntStatic.ToString(),
-                            IntStatic2.ToString(),
-                            IntStatic3.ToString(),
-                            IntStatic4.ToString()
-                        };
-                        WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
-                    }
-                }
-                else if (CE.Type == 8)
-                {
-                    SectionPast[MenuDepth] = SectionSelection;
-                    MenuPast[MenuDepth] = MenuSelection;
-                    SectionLast = SectionSelection;
-                    MenuLast = MenuSelection;
-                    EntryAccess[MenuDepth] = EntrySelection;
-                    ExplorerPurpose = CE.Purpose;
-                    ExplorerString = CE.File;
-                    ExplorerLocation = CE.StringPosition;
-                    MenuDepth++;
-                    SectionSelection = 2;
-                    MenuSelection = 0;
-                    EntrySelection = 0;
-                    if (ExplorerString != "")
-                    {
-                        EntrySelection = 1;
-                    }
-                    ChangePrepared = true;
-                }
-                else if (CE.Type == 9 && ExplorerPurpose == 0 || CE.Type == 10 && ExplorerPurpose == 1)
-                {
-                    MenuStorageStringStatic[(int)ExplorerLocation.X, (int)ExplorerLocation.Y, (int)ExplorerLocation.Z] = CE.Title;
-                    SectionLast = SectionSelection;
-                    MenuLast = MenuSelection;
-                    MenuDepth--;
-                    SectionSelection = SectionPast[MenuDepth];
-                    MenuSelection = MenuPast[MenuDepth];
-                    EntrySelection = EntryAccess[MenuDepth];
-                    ChangePrepared = true;
-                    MenuOptionsSave[SectionSelection, MenuSelection] = true;
-                }
-            }
-            if (BackPressed == 1)
-            {
-                if (MenuDepth != 0)
-                {
-                    SectionLast = SectionSelection;
-                    MenuLast = MenuSelection;
-                    MenuDepth--;
-                    SectionSelection = SectionPast[MenuDepth];
-                    MenuSelection = MenuPast[MenuDepth];
-                    EntrySelection = EntryAccess[MenuDepth];
-                    ChangePrepared = true;
-                }
-                else
-                {
-                    Exit();
-                }
-            }
-            if (UpPressed == 2 || DownPressed == 2)
-            {
-                HoldCurrent += (float)gameTime.ElapsedGameTime.TotalSeconds;
-                if (HoldCurrent >= HoldThreshold)
-                {
-                    if (DownPressed == 2) DownPrepared = true; else UpPrepared = true;
-                    HoldCurrent -= HoldReducePerClick;
-                }
-            }
-            else HoldCurrent = 0;
-            if (UpPrepared)
-            {
-                EntrySelection--;
-                if (EntrySelection < 0)
-                {
-                    EntrySelection = MenuEntriesList.Count - 1;
-                    TextOffset += TextSpread * (MenuEntriesList.Count - 1);
-                }
-                else
-                {
-                    TextOffset -= TextSpread;
-                }
-                while (MenuEntriesList[EntrySelection].Locked)
-                {
-                    EntrySelection--;
-                    if (EntrySelection < 0)
-                    {
-                        EntrySelection = MenuEntriesList.Count - 1;
-                    }
-                }
-                UpPrepared = false;
-            }
-            if (DownPrepared)
-            {
-                EntrySelection++;
-                if (EntrySelection == MenuEntriesList.Count)
-                {
-                    EntrySelection = 0;
-                    TextOffset -= TextSpread * (MenuEntriesList.Count - 1);
-                }
-                else
-                {
-                    TextOffset += TextSpread;
-                }
-                while (MenuEntriesList[EntrySelection].Locked)
-                {
-                    EntrySelection++;
-                    if (EntrySelection == MenuEntriesList.Count)
-                    {
-                        EntrySelection = 0;
-                    }
-                }
-                DownPrepared = false;
+                RightPrepared = false;
             }
             if (ChangePrepared)
             {
@@ -458,44 +453,55 @@ namespace RetroMap
                         List<string> SaveList = new List<string>();
                         for (CX = 0; CX < MenuEntriesList.Count; CX++)
                         {
-                            SaveList.Add(MenuStorageIntStatic[0, 0, CX].ToString());
+                            SaveList.Add(StorageInt["SystemEmulator_" + CX].ToString());
                         }
                         WriteToFile(RootConfig + @"\System.txt", SaveList);
+                    }
+                    if (SectionLast == 0 && MenuLast == 5)
+                    {
+                        List<string> SaveList = new List<string>();
+                        SaveList.Add(StorageInt["Audio_Master"].ToString());
+                        SaveList.Add(StorageInt["Audio_SFX"].ToString());
+                        SaveList.Add(StorageInt["Audio_Music"].ToString());
+                        WriteToFile(RootConfig + @"\Audio.txt", SaveList);
                     }
                     if (SectionLast == 0 && MenuLast == 8)
                     {
                         List<string> SaveList = new List<string>();
-                        for (CX = 0; CX < MenuEntriesList.Count; CX++)
-                        {
-                            SaveList.Add(MenuStorageIntStatic[0, 2, CX].ToString());
-                        }
+                        SaveList.Add(StorageInt["Clock_Toggle"].ToString());
+                        SaveList.Add(StorageInt["Clock_Mode"].ToString());
+                        SaveList.Add(StorageInt["Clock_Seconds"].ToString());
                         WriteToFile(RootConfig + @"\Clock.txt", SaveList);
                     }
                     if (SectionLast == 0 && MenuLast == 9)
                     {
                         List<string> SaveList = new List<string>();
-                        for (CX = 0; CX < MenuEntriesList.Count; CX++)
-                        {
-                            SaveList.Add(MenuStorageIntStatic[0, 3, CX].ToString());
-                        }
+                        SaveList.Add(StorageInt["Slide_Toggle"].ToString());
+                        SaveList.Add(StorageInt["Slide_Speed"].ToString());
                         WriteToFile(RootConfig + @"\Slide.txt", SaveList);
                     }
+                    if (SectionLast == 0 && MenuLast == 16)
+                    {
+                        List<string> SaveList = new List<string>();
+                        SaveList.Add(StorageInt["Font_Size"].ToString());
+                        WriteToFile(RootConfig + @"\Fonts.txt", SaveList);
+                    }
+                }
+                if (SectionLast == 0 && MenuLast == 15)
+                {
+                    List<string> SaveList = new List<string>();
+                    SaveList.Add(StorageInt["Background_Number"].ToString());
+                    WriteToFile(RootConfig + @"\BackgroundCustom.txt", SaveList);
                 }
                 if (SectionLast == 0 && MenuLast == 12 && SectionSelection != 2)
                 {
                     List<string> SaveList = new List<string>();
-                    for (CX = 0; CX < MenuEntriesList.Count; CX++)
+                    SaveList.Add(StorageInt["Directory_Rom_Amount"].ToString());
+                    for (CX = 1; CX < MenuEntriesList.Count; CX++)
                     {
-                        if (CX == 0)
+                        if (StorageString["Directory_Rom_" + CX] != null)
                         {
-                            SaveList.Add(MenuStorageIntStatic[0, 6, CX].ToString());
-                        }
-                        else
-                        {
-                            if (MenuStorageStringStatic[0, 6, CX] != null)
-                            {
-                                SaveList.Add(MenuStorageStringStatic[0, 6, CX].ToString());
-                            }
+                            SaveList.Add(StorageString["Directory_Rom_" + CX].ToString());
                         }
                     }
                     WriteToFile(RootConfig + @"\Roms.txt", SaveList);
@@ -503,18 +509,12 @@ namespace RetroMap
                 if (SectionLast == 0 && MenuLast == 13 && SectionSelection != 2)
                 {
                     List<string> SaveList = new List<string>();
-                    for (CX = 0; CX < MenuEntriesList.Count; CX++)
+                    SaveList.Add(StorageInt["Directory_Emulator_Amount"].ToString());
+                    for (CX = 1; CX < MenuEntriesList.Count; CX++)
                     {
-                        if (CX == 0)
+                        if (StorageString["Directory_Emulator_" + CX] != null)
                         {
-                            SaveList.Add(MenuStorageIntStatic[0, 5, CX].ToString());
-                        }
-                        else
-                        {
-                            if (MenuStorageStringStatic[0, 5, CX] != null)
-                            {
-                                SaveList.Add(MenuStorageStringStatic[0, 5, CX].ToString());
-                            }
+                            SaveList.Add(StorageString["Directory_Emulator_" + CX].ToString());
                         }
                     }
                     WriteToFile(RootConfig + @"\Emulators.txt", SaveList);
@@ -522,18 +522,12 @@ namespace RetroMap
                 if (SectionLast == 0 && MenuLast == 14 && SectionSelection != 2)
                 {
                     List<string> SaveList = new List<string>();
-                    for (CX = 0; CX < MenuEntriesList.Count; CX++)
+                    SaveList.Add(StorageInt["Directory_Background_Amount"].ToString());
+                    for (CX = 1; CX < MenuEntriesList.Count; CX++)
                     {
-                        if (CX == 0)
+                        if (StorageString["Directory_Background_" + CX] != null)
                         {
-                            SaveList.Add(MenuStorageIntStatic[0, 4, CX].ToString());
-                        }
-                        else
-                        {
-                            if (MenuStorageStringStatic[0, 4, CX] != null)
-                            {
-                                SaveList.Add(MenuStorageStringStatic[0, 4, CX].ToString());
-                            }
+                            SaveList.Add(StorageString["Directory_Background_" + CX].ToString());
                         }
                     }
                     WriteToFile(RootConfig + @"\Backgrounds.txt", SaveList);
@@ -541,24 +535,26 @@ namespace RetroMap
                 ClearMenu();
                 RebuildMenu(SectionSelection, MenuSelection);
                 ChangePrepared = false;
+                TimeSinceChange = 0;
             }
             base.Update(gameTime);
         }
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(new Color(0f, 0f, 0f, 1f));
-            if (MenuStorageIntStatic[0, 1, 2] != 0)
+            spriteBatch.Begin();
+            spriteBatch.Draw(background, new Rectangle(0, 0, CurrentWidth, CurrentHeight), Color.White);
+            spriteBatch.End();
+            var fps = 1 / gameTime.ElapsedGameTime.TotalSeconds;
+            Window.Title = fps.ToString();
+            if (TimeSinceChange < 5)
             {
-                spriteBatch.Begin();
-                spriteBatch.Draw(background, new Rectangle(0, 0, CurrentWidth, CurrentHeight), Color.White);
-                spriteBatch.End();
+                TimeSinceChange += (float)gameTime.ElapsedGameTime.TotalSeconds * 30f;
             }
             else
             {
-                background = null;
+                TimeSinceChange = 5;
             }
-            var fps = 1 / gameTime.ElapsedGameTime.TotalSeconds;
-            Window.Title = fps.ToString();
             spriteBatch.Begin();
             for (int i = 0; i < MenuEntriesList.Count; i++)
             {
@@ -580,34 +576,79 @@ namespace RetroMap
                         }
                         else
                         {
-                            MenuEntriesDraw += ">>> ";
+                            switch (StorageInt["Text_Selection_Icon"])
+                            {
+                                default: MenuEntriesDraw += ">>> "; break;
+                                case 1: MenuEntriesDraw += "> "; break;
+                                case 2: MenuEntriesDraw += "||| "; break;
+                                case 3:
+                                    switch ((int)DateTime.Now.Ticks)
+                                    {
+                                        default: MenuEntriesDraw += (DateTime.Now.Ticks % 10000000) / (1000) + " "; break;
+                                    }
+                                    break;
+                                case 4:
+                                    switch ((DateTime.Now.Ticks % 10000000) / (2000000))
+                                    {
+                                        case 0: MenuEntriesDraw += "|||    "; break;
+                                        case 1: MenuEntriesDraw += " |||   "; break;
+                                        case 2: MenuEntriesDraw += "  |||  "; break;
+                                        case 3: MenuEntriesDraw += "|  ||  "; break;
+                                        case 4: MenuEntriesDraw += "||  |  "; break;
+                                    }
+                                    break;
+                                case 5:
+                                    switch ((DateTime.Now.Ticks % 5000000) / (1000000))
+                                    {
+                                        case 0: MenuEntriesDraw += "|||    "; break;
+                                        case 1: MenuEntriesDraw += " |||   "; break;
+                                        case 2: MenuEntriesDraw += "  |||  "; break;
+                                        case 3: MenuEntriesDraw += "|  ||  "; break;
+                                        case 4: MenuEntriesDraw += "||  |  "; break;
+                                    }
+                                    break;
+                                case 6:
+                                    switch ((int)Math.Floor(TimeSinceChange))
+                                    {
+                                        case 0: MenuEntriesDraw += "|      "; break;
+                                        case 1: MenuEntriesDraw += "||     "; break;
+                                        case 2: MenuEntriesDraw += "|||    "; break;
+                                        case 3: MenuEntriesDraw += "||||   "; break;
+                                        default: MenuEntriesDraw += "|||||  "; break;
+                                    }
+                                    break;
+                                case 7:
+                                    switch ((int)Math.Floor(TimeSinceChange))
+                                    {
+                                        case 0: MenuEntriesDraw += "|  "; break;
+                                        case 1: MenuEntriesDraw += "||  "; break;
+                                        case 2: MenuEntriesDraw += "|||  "; break;
+                                        case 3: MenuEntriesDraw += "||||  "; break;
+                                        default: MenuEntriesDraw += "|||||  "; break;
+                                    }
+                                    break;
+                            }
                         }
                     }
                     MenuEntriesDraw += CE.Title;
                     if (CE.Type == 5)
                     {
-                        Vector3 IntPosition = CE.IntPosition;
-                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
-                        MenuEntriesDraw += "" + IntStatic;
+                        MenuEntriesDraw += "" + StorageInt[CE.Key];
                     }
                     if (CE.Type == 6)
                     {
-                        Vector3 IntPosition = CE.IntPosition;
-                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
                         string[] ToggleString = new string[2];
                         ToggleString[0] = "Off";
                         ToggleString[1] = "On";
-                        MenuEntriesDraw += "" + ToggleString[IntStatic];
+                        MenuEntriesDraw += "" + ToggleString[StorageInt[CE.Key]];
                     }
                     if (CE.Type == 7)
                     {
-                        Vector3 IntPosition = CE.IntPosition;
-                        int IntStatic = MenuStorageIntStatic[(int)IntPosition.X, (int)IntPosition.Y, (int)IntPosition.Z];
                         if (SectionSelection == 0 && MenuSelection == 3)
                         {
-                            if (IntStatic < EmulatorExes.Count)
+                            if (StorageInt[CE.Key] < EmulatorExes.Count)
                             {
-                                MenuEntriesDraw += " | " + EmulatorExes[IntStatic];
+                                MenuEntriesDraw += " | " + EmulatorExes[StorageInt[CE.Key]];
                             }
                             else
                             {
@@ -623,47 +664,143 @@ namespace RetroMap
                         }
                         else if (SectionSelection == 0 && MenuSelection == 4 && i == 0)
                         {
-                            MenuEntriesDraw += "" + MenuDisplayMode[IntStatic].Width + "x" + MenuDisplayMode[IntStatic].Height;
+                            MenuEntriesDraw += "" + MenuDisplayMode[StorageInt[CE.Key]].Width + "x" + MenuDisplayMode[StorageInt[CE.Key]].Height;
                         }
                         else if (SectionSelection == 0 && MenuSelection == 4 && i == 1)
                         {
-                            MenuEntriesDraw += "" + MenuWindowMode[IntStatic];
+                            MenuEntriesDraw += "" + MenuWindowMode[StorageInt[CE.Key]];
                         }
-                        else if (SectionSelection == 0 && MenuSelection == 4 && i == 2)
+                        else if (MenuEntriesList[i].Key == "Background_Number")
                         {
-                            if (IntStatic == 0)
+                            if (StorageInt[CE.Key] == 0)
                             {
                                 MenuEntriesDraw += "" + "Empty Background";
                             }
-                            else if (IntStatic == 1)
+                            else if (StorageInt[CE.Key] == 1)
                             {
                                 MenuEntriesDraw += "" + "Current Desktop Background";
                             }
                             else
                             {
-                                MenuEntriesDraw += "" + BackgroundImages[IntStatic - 2];
+                                MenuEntriesDraw += "" + BackgroundImages[StorageInt[CE.Key] - 2];
                             }
                         }
                         else
                         {
-                            MenuEntriesDraw += "" + IntStatic;
+                            MenuEntriesDraw += "" + StorageInt[CE.Key];
                         }
                     }
                     if (CE.Type == 8 || CE.Type == 11)
                     {
-                        Vector3 StrPosition = CE.StringPosition;
-                        string StrStatic = MenuStorageStringStatic[(int)StrPosition.X, (int)StrPosition.Y, (int)StrPosition.Z];
-                        MenuEntriesDraw += "" + StrStatic;
+                        MenuEntriesDraw += "" + StorageString[CE.Key];
                     }
                     Vector2 TextPosition = new Vector2(TextX, TextY);
                     DrawString(font, MenuEntriesDraw, TextPosition, 0, 0, Color.White);
                 }
             }
             DrawString(font, TimeString, new Vector2(CurrentWidth, 0), 2, 0, Color.White);
+            DrawString(font, "RetroMap v3 Beta", new Vector2(CurrentWidth, CurrentHeight), 2, 2, Color.White);
             spriteBatch.End();
             base.Draw(gameTime);
         }
 
+        void InputHandling()
+        {
+            CollectInputs();
+            if (GamepadInput["Use"] == 0)
+            {
+                UpPressed = KeyboardInput["W"];
+                DownPressed = KeyboardInput["S"];
+                LeftPressed = KeyboardInput["A"];
+                RightPressed = KeyboardInput["D"];
+                ConfirmPressed = KeyboardInput["Enter"];
+                BackPressed = KeyboardInput["Escape"];
+            }
+            else
+            {
+                if (GamepadInput["LSU"] != 0) UpPressed = GamepadInput["LSU"]; else UpPressed = GamepadInput["DU"];
+                if (GamepadInput["LSD"] != 0) DownPressed = GamepadInput["LSD"]; else DownPressed = GamepadInput["DD"];
+                if (GamepadInput["LSL"] != 0) LeftPressed = GamepadInput["LSL"]; else LeftPressed = GamepadInput["DL"];
+                if (GamepadInput["LSR"] != 0) RightPressed = GamepadInput["LSR"]; else RightPressed = GamepadInput["DR"];
+                ConfirmPressed = GamepadInput["A"];
+                BackPressed = GamepadInput["B"];
+            }
+        }
+        void CollectInputs()
+        {
+            GamePadCapabilities capabilities = GamePad.GetCapabilities(PlayerIndex.One);
+            KeyboardInput["A"] = KeyFunction(Keys.A, KeyboardInput["A"]);
+            KeyboardInput["B"] = KeyFunction(Keys.B, KeyboardInput["B"]);
+            KeyboardInput["C"] = KeyFunction(Keys.C, KeyboardInput["C"]);
+            KeyboardInput["D"] = KeyFunction(Keys.D, KeyboardInput["D"]);
+            KeyboardInput["E"] = KeyFunction(Keys.E, KeyboardInput["E"]);
+            KeyboardInput["F"] = KeyFunction(Keys.F, KeyboardInput["F"]);
+            KeyboardInput["G"] = KeyFunction(Keys.G, KeyboardInput["G"]);
+            KeyboardInput["H"] = KeyFunction(Keys.H, KeyboardInput["H"]);
+            KeyboardInput["I"] = KeyFunction(Keys.I, KeyboardInput["I"]);
+            KeyboardInput["J"] = KeyFunction(Keys.J, KeyboardInput["J"]);
+            KeyboardInput["K"] = KeyFunction(Keys.K, KeyboardInput["K"]);
+            KeyboardInput["L"] = KeyFunction(Keys.L, KeyboardInput["L"]);
+            KeyboardInput["M"] = KeyFunction(Keys.M, KeyboardInput["M"]);
+            KeyboardInput["N"] = KeyFunction(Keys.N, KeyboardInput["N"]);
+            KeyboardInput["O"] = KeyFunction(Keys.O, KeyboardInput["O"]);
+            KeyboardInput["P"] = KeyFunction(Keys.P, KeyboardInput["P"]);
+            KeyboardInput["Q"] = KeyFunction(Keys.Q, KeyboardInput["Q"]);
+            KeyboardInput["R"] = KeyFunction(Keys.R, KeyboardInput["R"]);
+            KeyboardInput["S"] = KeyFunction(Keys.S, KeyboardInput["S"]);
+            KeyboardInput["T"] = KeyFunction(Keys.T, KeyboardInput["T"]);
+            KeyboardInput["U"] = KeyFunction(Keys.U, KeyboardInput["U"]);
+            KeyboardInput["V"] = KeyFunction(Keys.V, KeyboardInput["V"]);
+            KeyboardInput["W"] = KeyFunction(Keys.W, KeyboardInput["W"]);
+            KeyboardInput["X"] = KeyFunction(Keys.X, KeyboardInput["X"]);
+            KeyboardInput["Y"] = KeyFunction(Keys.Y, KeyboardInput["Y"]);
+            KeyboardInput["Z"] = KeyFunction(Keys.Z, KeyboardInput["Z"]);
+            KeyboardInput["Up"] = KeyFunction(Keys.Up, KeyboardInput["W"]);
+            KeyboardInput["Down"] = KeyFunction(Keys.Down, KeyboardInput["X"]);
+            KeyboardInput["Left"] = KeyFunction(Keys.Left, KeyboardInput["Y"]);
+            KeyboardInput["Right"] = KeyFunction(Keys.Z, KeyboardInput["Z"]);
+            KeyboardInput["Enter"] = KeyFunction(Keys.Enter, KeyboardInput["Enter"]);
+            KeyboardInput["Escape"] = KeyFunction(Keys.Escape, KeyboardInput["Escape"]);
+            if (capabilities.IsConnected)
+            {
+                GamepadInput["A"] = PadFunction(Buttons.A, GamepadInput["A"]);
+                GamepadInput["B"] = PadFunction(Buttons.B, GamepadInput["B"]);
+                GamepadInput["X"] = PadFunction(Buttons.X, GamepadInput["X"]);
+                GamepadInput["Y"] = PadFunction(Buttons.Y, GamepadInput["Y"]);
+                GamepadInput["LB"] = PadFunction(Buttons.LeftShoulder, GamepadInput["LB"]);
+                GamepadInput["RB"] = PadFunction(Buttons.RightShoulder, GamepadInput["RB"]);
+                GamepadInput["LT"] = PadFunction(Buttons.LeftTrigger, GamepadInput["LT"]);
+                GamepadInput["RT"] = PadFunction(Buttons.RightTrigger, GamepadInput["RT"]);
+                GamepadInput["LS"] = PadFunction(Buttons.LeftStick, GamepadInput["LS"]);
+                GamepadInput["RS"] = PadFunction(Buttons.RightStick, GamepadInput["RS"]);
+                GamepadInput["DU"] = PadFunction(Buttons.DPadUp, GamepadInput["DU"]);
+                GamepadInput["DD"] = PadFunction(Buttons.DPadDown, GamepadInput["DD"]);
+                GamepadInput["DL"] = PadFunction(Buttons.DPadLeft, GamepadInput["DL"]);
+                GamepadInput["DR"] = PadFunction(Buttons.DPadRight, GamepadInput["DR"]);
+                GamepadInput["LSU"] = PadFunction(Buttons.LeftThumbstickUp, GamepadInput["LSU"]);
+                GamepadInput["LSD"] = PadFunction(Buttons.LeftThumbstickDown, GamepadInput["LSD"]);
+                GamepadInput["LSL"] = PadFunction(Buttons.LeftThumbstickLeft, GamepadInput["LSL"]);
+                GamepadInput["LSR"] = PadFunction(Buttons.LeftThumbstickRight, GamepadInput["LSR"]);
+                GamepadInput["RSU"] = PadFunction(Buttons.RightThumbstickUp, GamepadInput["RSU"]);
+                GamepadInput["RSD"] = PadFunction(Buttons.RightThumbstickDown, GamepadInput["RSD"]);
+                GamepadInput["RSL"] = PadFunction(Buttons.RightThumbstickLeft, GamepadInput["RSL"]);
+                GamepadInput["RSR"] = PadFunction(Buttons.RightThumbstickRight, GamepadInput["RSR"]);
+                GamepadInput["Start"] = PadFunction(Buttons.Start, GamepadInput["Start"]);
+                GamepadInput["Select"] = PadFunction(Buttons.Back, GamepadInput["Select"]);
+                if (GamepadInput.ContainsValue(1) || GamepadInput.ContainsValue(2))
+                {
+                    GamepadInput["Use"] = 10;
+                }
+                else
+                {
+                    GamepadInput["Use"] = 0;
+                }
+            }
+            else
+            {
+                GamepadInput["Use"] = 0;
+            }
+        }
         int KeyFunction(Keys Key, int Current)
         {
             if (Keyboard.GetState().IsKeyDown(Key))
@@ -738,13 +875,13 @@ namespace RetroMap
                 }
             }
             graphics.ApplyChanges();
-            CreateBackground(MenuStorageIntStatic[0, 1, 2]);
+            CreateBackground(StorageInt["Background_Number"]);
         }
         void CreateBackground(int BackgroundID)
         {
+            background = new Texture2D(GraphicsDevice, CurrentWidth, CurrentHeight);
             if (BackgroundID == 0)
             {
-                background = new Texture2D(GraphicsDevice, CurrentWidth, CurrentHeight);
                 Color[] data = new Color[CurrentWidth * CurrentHeight];
                 for (int pixel = 0; pixel < data.Length; pixel++)
                 {
@@ -817,7 +954,7 @@ namespace RetroMap
                         MenuSetup("Systems Menu");
                         DataManagement("Roms", false);
                         DataManagement("System", false);
-                        for (CZ = 0; CZ < MenuStorageIntStatic[0, 6, 0]; CZ++)
+                        for (CZ = 0; CZ < StorageInt["Directory_Rom_Amount"]; CZ++)
                         {
                             EntryLink(new DirectoryInfo(@Systems[CZ]).Name, 1, CZ, false, true);
                         }
@@ -825,20 +962,19 @@ namespace RetroMap
                         break;
                     case 3:
                         MenuSetup("Emulators Menu"); DataManagement("Emulators", false); DataManagement("System", false);
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: if (CZ < Systems.Count) EntryOption(new DirectoryInfo(@Systems[CZ]).Name, new Vector3(0, 0, CZ), 2, 0, EmulatorExes.Count - 1, false); else MenuEnd(); break;
-                            }
+                        for (CZ = 0; !RebuildStop; CZ++)
+                        {
+                            if (CZ < Systems.Count) EntryOption(new DirectoryInfo(@Systems[CZ]).Name, "SystemEmulator_" + CZ, 2, 0, EmulatorExes.Count - 1, false);
+                            else MenuEnd();
+                        }
                         break;
                     case 4:
                         MenuSetup("Settings"); DataManagement("Backgrounds", false);
                         for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
-                                case 0: EntryOption("Resolution: ", new Vector3(0, 1, 0), 2, 0, MenuResolutionDisplay.Count - 1, false); break;
-                                case 1: EntryOption("Screen Mode: ", new Vector3(0, 1, 1), 2, 0, 2, false); break;
-                                case 2: EntryOption("Current Background: ", new Vector3(0, 1, 2), 2, 0, BackgroundImages.Count + 1, false); break;
-                                case 3: EntryOption("Font Size: ", new Vector3(0, 1, 3), 0, 12, 72, false); break;
+                                case 0: EntryOption("Resolution: ", "Video_ScreenResolution", 2, 0, MenuResolutionDisplay.Count - 1, false); break;
+                                case 1: EntryOption("Screen Mode: ", "Video_ScreenMode", 2, 0, 2, false); break;
                             }
                         break;
                     case 5:
@@ -846,6 +982,9 @@ namespace RetroMap
                         for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
+                                case 0: EntryOption("Volume Master: ", "Audio_Master", 0, 0, 100, false); break;
+                                case 1: EntryOption("Volume SFX: ", "Audio_SFX", 0, 0, 100, false); break;
+                                case 2: EntryOption("Volume Music: ", "Audio_Music", 0, 0, 100, false); break;
                             }
                         break;
                     case 6:
@@ -860,11 +999,12 @@ namespace RetroMap
                         for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
-                                case 0: EntryLink("Clock Settings", 0, 8, false, true); break;
-                                case 1: EntryLink("Slide Settings", 0, 9, false, true); break;
-                                case 2: EntryLink("Audio Settings", 0, 5, false, true); break;
+                                case 0: EntryLink("Audio Settings", 0, 5, false, true); break;
+                                case 1: EntryLink("Background Settings", 0, 15, false, true); break;
+                                case 2: EntryLink("Clock Settings", 0, 8, false, true); break;
                                 case 3: EntryLink("Control Settings", 0, 6, false, true); break;
-                                case 4: EntryLink("Developer Debug Stuff", 0, 10, false, true); break;
+                                case 4: EntryLink("Font Settings", 0, 16, false, true); break;
+                                case 5: EntryLink("Slide Settings", 0, 9, false, true); break;
                             }
                         break;
                     case 8:
@@ -872,9 +1012,9 @@ namespace RetroMap
                         for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
-                                case 0: EntryOption("Clock Toggle: ", new Vector3(0, 2, 0), 1, 0, 1, false); break;
-                                case 1: EntryOption("Clock Mode: ", new Vector3(0, 2, 1), 2, 0, 1, false); break;
-                                case 2: EntryOption("Clock Seconds: ", new Vector3(0, 2, 2), 1, 0, 1, false); break;
+                                case 0: EntryOption("Clock Toggle: ", "Clock_Toggle", 1, 0, 1, false); break;
+                                case 1: EntryOption("Clock Mode: ", "Clock_Mode", 2, 0, 1, false); break;
+                                case 2: EntryOption("Clock Seconds: ", "Clock_Seconds", 1, 0, 1, false); break;
                             }
                         break;
                     case 9:
@@ -882,8 +1022,8 @@ namespace RetroMap
                         for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
-                                case 0: EntryOption("Slide Toggle: ", new Vector3(0, 3, 0), 1, 0, 1, false); break;
-                                case 1: EntryOption("Slide Speed: ", new Vector3(0, 3, 1), 0, 0, 30, false); break;
+                                case 0: EntryOption("Slide Toggle: ", "Slide_Toggle", 1, 0, 1, false); break;
+                                case 1: EntryOption("Slide Speed: ", "Slide_Speed", 0, 0, 30, false); break;
                             }
                         break;
                     case 10:
@@ -891,8 +1031,6 @@ namespace RetroMap
                         for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
                             {
                                 default: MenuEnd(); break;
-                                case 0: EntryExplorer("File Explorer Test, Folder. Result: ", "", 0, new Vector3(0, 0, 0)); break;
-                                case 1: EntryExplorer("File Explorer Test, File. Result: ", "", 1, new Vector3(0, 0, 1)); break;
                             }
                         break;
                     case 11:
@@ -907,48 +1045,164 @@ namespace RetroMap
                         break;
                     case 12:
                         MenuSetup("Rom Folder Paths");
-                        for (CZ = 0; CZ < MenuStorageIntStatic[0, 6, 0] + 1; CZ++)
+                        for (CZ = 0; CZ < StorageInt["Directory_Rom_Amount"] + 1; CZ++)
                         {
                             if (CZ == 0)
                             {
-                                EntryOption("Rom Folders: ", new Vector3(0, 6, 0), 0, 0, 250, true);
+                                EntryOption("Rom Folders: ", "Directory_Rom_Amount", 0, 0, 250, true);
                             }
                             else
                             {
-                                EntryExplorer("Folder " + CZ + ": ", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 0, new Vector3(0, 6, CZ));
+                                EntryExplorer("Folder " + CZ + ": ", "Directory_Rom_" + CZ, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 0);
                             }
                         }
                         MenuEnd();
                         break;
                     case 13:
                         MenuSetup("Emulator Paths");
-                        for (CZ = 0; CZ < MenuStorageIntStatic[0, 5, 0] + 1; CZ++)
+                        for (CZ = 0; CZ < StorageInt["Directory_Emulator_Amount"] + 1; CZ++)
                         {
                             if (CZ == 0)
                             {
-                                EntryOption("Amount of Emulators: ", new Vector3(0, 5, 0), 0, 0, 250, true);
+                                EntryOption("Amount of Emulators: ", "Directory_Emulator_Amount", 0, 0, 250, true);
                             }
                             else
                             {
-                                EntryExplorer("Emulator " + CZ + ": ", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 1, new Vector3(0, 5, CZ));
+                                EntryExplorer("Emulator " + CZ + ": ", "Directory_Emulator_" + CZ, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 1);
                             }
                         }
                         MenuEnd();
                         break;
                     case 14:
                         MenuSetup("Background Paths");
-                        for (CZ = 0; CZ < MenuStorageIntStatic[0, 4, 0] + 1; CZ++)
+                        for (CZ = 0; CZ < StorageInt["Directory_Background_Amount"] + 1; CZ++)
                         {
                             if (CZ == 0)
                             {
-                                EntryOption("Background Directories: ", new Vector3(0, 4, 0), 0, 0, 250, true);
+                                EntryOption("Background Directories: ", "Directory_Background_Amount", 0, 0, 250, true);
                             }
                             else
                             {
-                                EntryExplorer("BG" + CZ + ": ", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), 0, new Vector3(0, 4, CZ));
+                                EntryExplorer("BG" + CZ + ": ", "Directory_Background_" + CZ, Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), 0);
                             }
                         }
                         MenuEnd();
+                        break;
+                    case 15:
+                        MenuSetup("Background Settings"); CreateBackground(StorageInt["Background_Number"]);
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryText("Background Use"); break; 
+                                case 1: EntryOption("Current Background: ", "Background_Number", 2, 0, BackgroundImages.Count + 1, true); break;
+                            }
+                        break;
+                    case 16:
+                        MenuSetup("Font Settings");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                                case 0: EntryText("Current Font: Roboto"); break;
+                                case 1: EntryOption("Font Size: ", "Font_Size", 0, 12, 72, false); break;
+                            }
+                        break;
+                    case 17:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 18:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 19:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 20:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 21:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 22:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 23:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 24:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 25:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 26:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 27:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 28:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 29:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
+                        break;
+                    case 30:
+                        MenuSetup("Placeholder");
+                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
+                            {
+                                default: MenuEnd(); break;
+                            }
                         break;
                     default:
                         MenuSetup("Placeholder");
@@ -968,7 +1222,10 @@ namespace RetroMap
                 {
                     if (EmulatorExes.Count != 0)
                     {
-                        if (CZ < SystemsGamesAmount) EntryProgram(SystemsGames[CZ].Replace((Systems[CY] + @"\"), ""), EmulatorExes[MenuStorageIntStatic[0, 0, CY]], SystemsGames[CZ], "<FILE>");
+                        if (CZ < SystemsGamesAmount)
+                        {
+                            if (Path.GetExtension(SystemsGames[CZ]) != ".sav") EntryProgram(SystemsGames[CZ].Replace((Systems[CY] + @"\"), "").Replace(Path.GetExtension(SystemsGames[CZ]),""), EmulatorExes[StorageInt["SystemEmulator_" + CY]], SystemsGames[CZ], "<FILE>");
+                        }
                         else MenuEnd();
                     }
                     else
@@ -1090,7 +1347,7 @@ namespace RetroMap
                     Type = 4
                 });
         }
-        void EntryOption(string EntryString, Vector3 VariableLocation, int OptionType, int MinimumIntAllowed, int MaximumIntAllowed, bool RebuildOnChange)
+        void EntryOption(string EntryString, string EntryKey, int OptionType, int MinimumIntAllowed, int MaximumIntAllowed, bool RebuildOnChange)
         {
             switch (OptionType)
             {
@@ -1117,15 +1374,15 @@ namespace RetroMap
             MenuEntriesList.Add(new Entry
                 {
                     Title = EntryString,
+                    Key = EntryKey,
                     Number = CZ,
                     Type = OptionType,
                     Minimum = MinimumIntAllowed,
                     Maximum = MaximumIntAllowed,
-                    IntPosition = VariableLocation,
                     RebuildOnChange = RebuildOnChange,
                 });
         }
-        void EntryExplorer(string EntryString, string StartingDirectory, int Purpose, Vector3 Location)
+        void EntryExplorer(string EntryString, string EntryKey, string StartingDirectory, int Purpose)
         {
             MenuEntriesList.Add(new Entry
                 {
@@ -1133,9 +1390,13 @@ namespace RetroMap
                     Number = CZ,
                     File = StartingDirectory,
                     Purpose = Purpose,
-                    StringPosition = Location,
+                    Key = EntryKey,
                     Type = 8
                 });
+            if (!StorageString.ContainsKey(MenuEntriesList[MenuEntriesList.Count - 1].Key))
+            {
+                StorageString.Add(MenuEntriesList[MenuEntriesList.Count - 1].Key, "");
+            }
         }
         void EntryExplorerFolder(string EntryString)
         {
@@ -1155,15 +1416,19 @@ namespace RetroMap
                     Type = 10
                 });
         }
-        void EntryString(string EntryString, Vector3 Location)
+        void EntryString(string EntryString, string EntryKey)
         {
             MenuEntriesList.Add(new Entry
                 {
                     Title = EntryString,
                     Number = CZ,
-                    StringPosition = Location,
+                    Key = EntryKey,
                     Type = 11
                 });
+            if (!StorageString.ContainsKey(MenuEntriesList[MenuEntriesList.Count - 1].Key))
+            {
+                StorageString.Add(MenuEntriesList[MenuEntriesList.Count - 1].Key, "");
+            }
         }
 
         void DataManagement(string Element, bool OnBoot)
@@ -1179,22 +1444,22 @@ namespace RetroMap
                         {
                             VideoStorage = ReadFromFile(RootConfig + @"\Roms.txt");
                             int c = 0;
-                            if (VideoStorage.Count > c) MenuStorageIntStatic[0, 6, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 6, 0] = 0; c++;
+                            if (VideoStorage.Count > c) StorageInt["Directory_Rom_Amount"] = Int32.Parse(VideoStorage[0]); else StorageInt["Directory_Rom_Amount"] = 0; c++;
                             while (c < VideoStorage.Count)
                             {
-                                MenuStorageStringStatic[0, 6, c] = VideoStorage[c];
+                                StorageString["Directory_Rom_" + c] = VideoStorage[c];
                                 c++;
                             }
                         }
                         else
                         {
-                            VideoStorage.Add(MenuStorageIntStatic[0, 6, 0].ToString());
-                            for (int i = 0; i < MenuStorageIntStatic[0, 6, 0]; i++)
+                            VideoStorage.Add(StorageInt["Directory_Rom_Amount"].ToString());
+                            for (int i = 0; i < StorageInt["Directory_Rom_Amount"]; i++)
                             {
-                                VideoStorage.Add(MenuStorageStringStatic[0, 6, i + 1]);
+                                VideoStorage.Add(StorageString["Directory_Rom_" + (i + 1)]);
                             }
                         }
-                        for (int i = 0; i < MenuStorageIntStatic[0, 6, 0]; i++)
+                        for (int i = 0; i < StorageInt["Directory_Rom_Amount"]; i++)
                         {
                             if (VideoStorage.Count > i + 1)
                             {
@@ -1211,7 +1476,7 @@ namespace RetroMap
                         {
                             0.ToString()
                         };
-                        MenuStorageIntStatic[0, 6, 0] = 0;
+                        StorageInt["Directory_Rom_Amount"] = 0;
                         WriteToFile(RootConfig + @"\Roms.txt", VideoStorage);
                     }
                     MenuSystemLoad = new List<string>[Systems.Count];
@@ -1229,22 +1494,22 @@ namespace RetroMap
                         {
                             VideoStorage = ReadFromFile(RootConfig + @"\Emulators.txt");
                             int c = 0;
-                            if (VideoStorage.Count > c) MenuStorageIntStatic[0, 5, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 5, 0] = 0; c++;
+                            if (VideoStorage.Count > c) StorageInt["Directory_Emulator_Amount"] = Int32.Parse(VideoStorage[0]); else StorageInt["Directory_Emulator_Amount"] = 0; c++;
                             while (c < VideoStorage.Count)
                             {
-                                MenuStorageStringStatic[0, 5, c] = VideoStorage[c];
+                                StorageString["Directory_Emulator_" + (c)] = VideoStorage[c];
                                 c++;
                             }
                         }
                         else
                         {
-                            VideoStorage.Add(MenuStorageIntStatic[0, 5, 0].ToString());
-                            for (int i = 0; i < MenuStorageIntStatic[0, 5, 0]; i++)
+                            VideoStorage.Add(StorageInt["Directory_Emulator_Amount"].ToString());
+                            for (int i = 0; i < StorageInt["Directory_Emulator_Amount"]; i++)
                             {
-                                VideoStorage.Add(MenuStorageStringStatic[0, 5, i + 1]);
+                                VideoStorage.Add(StorageString["Directory_Emulator_" + (i + 1)]);
                             }
                         }
-                        for (int i = 0; i < MenuStorageIntStatic[0, 5, 0]; i++)
+                        for (int i = 0; i < StorageInt["Directory_Emulator_Amount"]; i++)
                         {
                             if (VideoStorage.Count > i + 1)
                             {
@@ -1261,7 +1526,7 @@ namespace RetroMap
                         {
                             0.ToString()
                         };
-                        MenuStorageIntStatic[0, 5, 0] = 0;
+                        StorageInt["Directory_Emulator_Amount"] = 0;
                         WriteToFile(RootConfig + @"\Emulators.txt", VideoStorage);
                     }
                     break;
@@ -1272,26 +1537,29 @@ namespace RetroMap
                         if (OnBoot)
                         {
                             VideoStorage = ReadFromFile(RootConfig + @"\System.txt");
-                            for (int c = 0; c < MenuStorageIntStatic[0, 6, 0]; c++)
+                            for (int c = 0; c < StorageInt["Directory_Rom_Amount"]; c++)
                             {
-                                if (VideoStorage.Count > c) MenuStorageIntStatic[0, 0, c] = Int32.Parse(VideoStorage[c]); else MenuStorageIntStatic[0, 0, c] = 0;
+                                if (VideoStorage.Count > c) StorageInt["SystemEmulator_" + c] = Int32.Parse(VideoStorage[c]); else StorageInt["SystemEmulator_" + c] = 0;
                             }
                         }
                         else
                         {
-                            for (int i = 0; i < MenuStorageIntStatic[0, 6, 0]; i++)
+                            for (int c = 0; c < StorageInt["Directory_Rom_Amount"]; c++)
                             {
-                                VideoStorage.Add(MenuStorageStringStatic[0, 0, i]);
+                                if (!StorageInt.ContainsKey("SystemEmulator_" + c))
+                                {
+                                    StorageInt.Add("SystemEmulator_" + c, 0);
+                                }
                             }
                         }
                     }
                     else
                     {
                         List<string> VideoStorage = new List<string>();
-                        for (int c = 0; c < MenuStorageIntStatic[0, 6, 0]; c++)
+                        for (int c = 0; c < StorageInt["Directory_Rom_Amount"]; c++)
                         {
                             VideoStorage.Add(0.ToString());
-                            MenuStorageIntStatic[0, 0, c] = 0;
+                            StorageInt["SystemEmulator_" + c] = 0;
                         }
                         WriteToFile(RootConfig + @"\System.txt", VideoStorage);
                     }
@@ -1305,22 +1573,22 @@ namespace RetroMap
                         {
                             VideoStorage = ReadFromFile(RootConfig + @"\Backgrounds.txt");
                             int c = 0;
-                            if (VideoStorage.Count > c) MenuStorageIntStatic[0, 4, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 4, 0] = 0; c++;
+                            if (VideoStorage.Count > c) StorageInt["Directory_Background_Amount"] = Int32.Parse(VideoStorage[0]); else StorageInt["Directory_Background_Amount"] = 0; c++;
                             while (c < VideoStorage.Count)
                             {
-                                MenuStorageStringStatic[0, 4, c] = VideoStorage[c];
+                                StorageString["Directory_Background_" + c] = VideoStorage[c];
                                 c++;
                             }
                         }
                         else
                         {
-                            VideoStorage.Add(MenuStorageIntStatic[0, 4, 0].ToString());
-                            for (int i = 0; i < MenuStorageIntStatic[0, 4, 0]; i++)
+                            VideoStorage.Add(StorageInt["Directory_Background_Amount"].ToString());
+                            for (int i = 0; i < StorageInt["Directory_Background_Amount"]; i++)
                             {
-                                VideoStorage.Add(MenuStorageStringStatic[0, 4, i + 1]);
+                                VideoStorage.Add(StorageString["Directory_Background_" + (i + 1)]);
                             }
                         }
-                        for (int i = 0; i < MenuStorageIntStatic[0, 4, 0]; i++)
+                        for (int i = 0; i < StorageInt["Directory_Background_Amount"]; i++)
                         {
                             if (VideoStorage.Count > i + 1)
                             {
@@ -1345,7 +1613,7 @@ namespace RetroMap
                         {
                             0.ToString()
                         };
-                        MenuStorageIntStatic[0, 4, 0] = 0;
+                        StorageInt["Directory_Background_Amount"] = 0;
                         WriteToFile(RootConfig + @"\Backgrounds.txt", VideoStorage);
                     }
                     break;
@@ -1355,12 +1623,9 @@ namespace RetroMap
                         List<string> VideoStorage = new List<string>();
                         VideoStorage = ReadFromFile(RootConfig + @"\Video.txt");
                         int c = 0;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 1, 0] = 0; c++;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 1, 1] = 2; c++;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 1, 2] = 0; c++;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 1, 3] = Int32.Parse(VideoStorage[3]); else MenuStorageIntStatic[0, 1, 3] = 12; c++;
-                        if (MenuStorageIntStatic[0, 1, 2] >= BackgroundImages.Count) MenuStorageIntStatic[0, 1, 2] = 0;
-                        ApplyGraphics(MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Width, MenuDisplayMode[MenuStorageIntStatic[0, 1, 0]].Height, MenuStorageIntStatic[0, 1, 1]);
+                        if (VideoStorage.Count > c) StorageInt["Video_ScreenResolution"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Video_ScreenMode"] = Int32.Parse(VideoStorage[c]); c++;
+                        ApplyGraphics(MenuDisplayMode[StorageInt["Video_ScreenResolution"]].Width, MenuDisplayMode[StorageInt["Video_ScreenResolution"]].Height, StorageInt["Video_ScreenMode"]);
                     }
                     else
                     {
@@ -1370,11 +1635,8 @@ namespace RetroMap
                         b++;
                         VideoStorage.Add(b.ToString());
                         VideoStorage.Add(2.ToString());
-                        VideoStorage.Add(0.ToString());
-                        MenuStorageIntStatic[0, 1, 0] = b;
-                        MenuStorageIntStatic[0, 1, 1] = 2;
-                        MenuStorageIntStatic[0, 1, 2] = 0;
-                        MenuStorageIntStatic[0, 1, 3] = 12;
+                        StorageInt["Video_ScreenResolution"] = b;
+                        StorageInt["Video_ScreenMode"] = 2;
                         ApplyGraphics(MenuDisplayMode[b].Width, MenuDisplayMode[b].Height, 2);
                         WriteToFile(RootConfig + @"\Video.txt", VideoStorage);
                     }
@@ -1385,21 +1647,18 @@ namespace RetroMap
                         List<string> VideoStorage = new List<string>();
                         VideoStorage = ReadFromFile(RootConfig + @"\Clock.txt");
                         int c = 0;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 2, 0] = 1; c++;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 2, 1] = 0; c++;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 2, 2] = Int32.Parse(VideoStorage[2]); else MenuStorageIntStatic[0, 2, 2] = 1; c++;
+                        if (VideoStorage.Count > c) StorageInt["Clock_Toggle"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Clock_Mode"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Clock_Seconds"] = Int32.Parse(VideoStorage[c]); c++;
                     }
                     else
                     {
                         List<string> VideoStorage = new List<string>
                         {
-                            1.ToString(),
-                            0.ToString(),
-                            1.ToString()
+                            StorageInt["Clock_Toggle"].ToString(),
+                            StorageInt["Clock_Mode"].ToString(),
+                            StorageInt["Clock_Seconds"].ToString()
                         };
-                        MenuStorageIntStatic[0, 2, 0] = 1; //Controls Whether The Clock Will Be Shown
-                        MenuStorageIntStatic[0, 2, 1] = 0; //Controls Whether The Clock Will Show 12 Hour Time or 24 Hour Time
-                        MenuStorageIntStatic[0, 2, 2] = 1; //Controls Whether The Clock Will Show Seconds
                         WriteToFile(RootConfig + @"\Clock.txt", VideoStorage);
                     }
                     break;
@@ -1409,34 +1668,183 @@ namespace RetroMap
                         List<string> VideoStorage = new List<string>();
                         VideoStorage = ReadFromFile(RootConfig + @"\Slide.txt");
                         int c = 0;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 3, 0] = Int32.Parse(VideoStorage[0]); else MenuStorageIntStatic[0, 3, 0] = 1; c++;
-                        if (VideoStorage.Count > c) MenuStorageIntStatic[0, 3, 1] = Int32.Parse(VideoStorage[1]); else MenuStorageIntStatic[0, 3, 1] = 16; c++;
+                        if (VideoStorage.Count > c) StorageInt["Slide_Toggle"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Slide_Speed"] = Int32.Parse(VideoStorage[c]); c++;
                     }
                     else
                     {
                         List<string> VideoStorage = new List<string>
                         {
-                            1.ToString(),
-                            16.ToString()
+                            StorageInt["Slide_Toggle"].ToString(),
+                            StorageInt["Slide_Speed"].ToString()
                         };
-                        MenuStorageIntStatic[0, 3, 0] = 1; //Controls Whether Entries Will Slide When Entry Is Changed
-                        MenuStorageIntStatic[0, 3, 1] = 16; //Controls How Fast Entries Slide
                         WriteToFile(RootConfig + @"\Slide.txt", VideoStorage);
+                    }
+                    break;
+                case "Audio":
+                    if (File.Exists(RootConfig + @"\Audio.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage = ReadFromFile(RootConfig + @"\Audio.txt");
+                        int c = 0;
+                        if (VideoStorage.Count > c) StorageInt["Audio_Master"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Audio_SFX"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Audio_Music"] = Int32.Parse(VideoStorage[c]); c++;
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>
+                        {
+                            StorageInt["Audio_Master"].ToString(),
+                            StorageInt["Audio_SFX"].ToString(),
+                            StorageInt["Audio_Music"].ToString()
+                        };
+                        WriteToFile(RootConfig + @"\Audio.txt", VideoStorage);
+                    }
+                    break;
+                case "BackgroundCustom":
+                    if (File.Exists(RootConfig + @"\BackgroundCustom.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage = ReadFromFile(RootConfig + @"\BackgroundCustom.txt");
+                        int c = 0;
+                        if (VideoStorage.Count > c) StorageInt["Background_Number"] = Int32.Parse(VideoStorage[c]); c++;
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>
+                        {
+                            StorageInt["Background_Number"].ToString()
+                        };
+                        WriteToFile(RootConfig + @"\BackgroundCustom.txt", VideoStorage);
+                    }
+                    break;
+                case "Font":
+                    if (File.Exists(RootConfig + @"\Fonts.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage = ReadFromFile(RootConfig + @"\Fonts.txt");
+                        int c = 0;
+                        if (VideoStorage.Count > c) StorageInt["Font_Size"] = Int32.Parse(VideoStorage[c]); c++;
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>
+                        {
+                            StorageInt["Font_Size"].ToString()
+                        };
+                        WriteToFile(RootConfig + @"\Fonts.txt", VideoStorage);
                     }
                     break;
             }
         }
+        void StorageBuildOnBoot()
+        {
+            StorageInt.Add("Video_ScreenResolution", 0);
+            StorageInt.Add("Video_ScreenWidth", 1280);
+            StorageInt.Add("Video_ScreenHeight", 720);
+            StorageInt.Add("Video_ScreenMode", 2);
+            StorageInt.Add("Video_ScreenRefreshRate", 60);
+            StorageInt.Add("Audio_Master", 50);
+            StorageInt.Add("Audio_SFX", 50);
+            StorageInt.Add("Audio_Music", 50);
+            StorageInt.Add("Background_Toggle", 1);
+            StorageInt.Add("Background_Number", 1);
+            StorageInt.Add("Background_Amount", 0);
+            StorageInt.Add("Slide_Toggle", 1);
+            StorageInt.Add("Slide_Speed", 15);
+            StorageInt.Add("Clock_Toggle", 1);
+            StorageInt.Add("Clock_Mode", 0);
+            StorageInt.Add("Clock_Seconds", 0);
+            StorageInt.Add("Font_Size", 21);
+            StorageInt.Add("Directory_Background_Amount", 0);
+            StorageInt.Add("Directory_Emulator_Amount", 0);
+            StorageInt.Add("Directory_Rom_Amount", 0);
+            StorageInt.Add("Text_Selection_Icon", 6);
 
+            KeyboardInput.Add("A", 0);
+            KeyboardInput.Add("B", 0);
+            KeyboardInput.Add("C", 0);
+            KeyboardInput.Add("D", 0);
+            KeyboardInput.Add("E", 0);
+            KeyboardInput.Add("F", 0);
+            KeyboardInput.Add("G", 0);
+            KeyboardInput.Add("H", 0);
+            KeyboardInput.Add("I", 0);
+            KeyboardInput.Add("J", 0);
+            KeyboardInput.Add("K", 0);
+            KeyboardInput.Add("L", 0);
+            KeyboardInput.Add("M", 0);
+            KeyboardInput.Add("N", 0);
+            KeyboardInput.Add("O", 0);
+            KeyboardInput.Add("P", 0);
+            KeyboardInput.Add("Q", 0);
+            KeyboardInput.Add("R", 0);
+            KeyboardInput.Add("S", 0);
+            KeyboardInput.Add("T", 0);
+            KeyboardInput.Add("U", 0);
+            KeyboardInput.Add("V", 0);
+            KeyboardInput.Add("W", 0);
+            KeyboardInput.Add("X", 0);
+            KeyboardInput.Add("Y", 0);
+            KeyboardInput.Add("Z", 0);
+            KeyboardInput.Add("Up", 0);
+            KeyboardInput.Add("Down", 0);
+            KeyboardInput.Add("Left", 0);
+            KeyboardInput.Add("Right", 0);
+            KeyboardInput.Add("Enter", 0);
+            KeyboardInput.Add("Escape", 0);
+
+            GamepadInput.Add("A", 0);
+            GamepadInput.Add("B", 0);
+            GamepadInput.Add("X", 0);
+            GamepadInput.Add("Y", 0);
+            GamepadInput.Add("LB", 0);
+            GamepadInput.Add("RB", 0);
+            GamepadInput.Add("LT", 0);
+            GamepadInput.Add("RT", 0);
+            GamepadInput.Add("LS", 0);
+            GamepadInput.Add("RS", 0);
+            GamepadInput.Add("DU", 0);
+            GamepadInput.Add("DD", 0);
+            GamepadInput.Add("DL", 0);
+            GamepadInput.Add("DR", 0);
+            GamepadInput.Add("LSU", 0);
+            GamepadInput.Add("LSD", 0);
+            GamepadInput.Add("LSL", 0);
+            GamepadInput.Add("LSR", 0);
+            GamepadInput.Add("RSU", 0);
+            GamepadInput.Add("RSD", 0);
+            GamepadInput.Add("RSL", 0);
+            GamepadInput.Add("RSR", 0);
+            GamepadInput.Add("Start", 0);
+            GamepadInput.Add("Select", 0);
+            GamepadInput.Add("Use", 0);
+
+            MouseInput.Add("MouseX", 0);
+            MouseInput.Add("MouseY", 0);
+            MouseInput.Add("MouseDeltaX", 0);
+            MouseInput.Add("MouseDeltaY", 0);
+            MouseInput.Add("MouseLeftClick", 0);
+            MouseInput.Add("MouseRightClick", 0);
+            MouseInput.Add("MouseMiddleClick", 0);
+            MouseInput.Add("MouseScrollUp", 0);
+            MouseInput.Add("MouseScrollDown", 0);
+        }
+
+        [DllImport("user32")]
+        private static extern bool SetForegroundWindow(IntPtr hwnd);
         public void ExecuteCommand(string Command)
         {
             Process process = new Process();
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
-                FileName = "\"" + MenuEntriesList[EntrySelection].File + "\"",
+                FileName = "\"" + MenuEntriesList[EntrySelection].Program + "\"",
                 Arguments = "\"" + Command + "\""
             };
             process.StartInfo = startInfo;
             process.Start();
+            SetForegroundWindow(process.MainWindowHandle);
             process.WaitForExit();
         }
         public void DrawString(SpriteFont font, string text, Vector2 pos, int AlignmentX, int AlignmentY, Color color)
@@ -1453,7 +1861,7 @@ namespace RetroMap
             if (AlignmentY == 0)
                 origin.Y -= size.Y / 2;
 
-            if (AlignmentX == 0)
+            if (AlignmentY == 2)
                 origin.Y += size.Y / 2;
 
             spriteBatch.DrawString(font, text, pos, color, 0, origin, TextScale, SpriteEffects.None, 0);
@@ -1499,6 +1907,7 @@ namespace RetroMap
         public class Entry
         {
             public string Title = "Placeholder";
+            public string Key = "";
             public int Number = 0;
             public string Program = ""; //Strings for program entries to use to open programs
             public string File = ""; //Strings for program entries to use to open files within programs
@@ -1507,8 +1916,6 @@ namespace RetroMap
             public int Type = 1; //Types of entries
             public int DestinationSection = 0; //Entry destination when clicked (Section)
             public int DestinationMenu = 0; //Entry destination when clicked (Menu)
-            public Vector3 IntPosition = Vector3.Zero;
-            public Vector3 StringPosition = Vector3.Zero;
             public int Minimum = 0;
             public int Maximum = 0;
             public bool RebuildOnChange = false;
