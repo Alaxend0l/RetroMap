@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Win32;
 using System.Collections.Generic;
+using System.Globalization;
 using System;
 using System.IO;
 using System.Diagnostics;
@@ -51,6 +52,7 @@ namespace RetroMap
         float TextSpread;
         float TextOffset;
         string TimeString;
+        string CalendarString;
         int[] SectionPast; //Previously entered sections.
         int[] MenuPast; //Previously entered menu screens.
         int SectionLast;
@@ -155,6 +157,10 @@ namespace RetroMap
         }
         protected override void Update(GameTime gameTime)
         {
+            if (EntrySelection >= MenuEntriesList.Count)
+            {
+                EntrySelection = MenuEntriesList.Count - 1;
+            }
             Entry CE = MenuEntriesList[EntrySelection];
             TextScale = new Vector2((float)StorageInt["Font_Size"] / 72, (float)StorageInt["Font_Size"] / 72);
             TextSpread = (StorageInt["Font_Size"] / 2 * 2.75f);
@@ -193,13 +199,102 @@ namespace RetroMap
             {
                 TimeString = " ";
             }
-            if (StorageInt["Slide_Toggle"] == 1)
+            if (StorageInt["Calendar_Toggle"] == 1)
             {
-                TextOffset = TextOffset - TextOffset * StorageInt["Slide_Speed"] * (float)gameTime.ElapsedGameTime.TotalSeconds;
+                string CalendarDay = DateTime.Now.Day.ToString();
+                string CalendarMonth = DateTime.Now.Month.ToString();
+                int CalendarYear = Int32.Parse(DateTime.Now.Year.ToString());
+                string CalendarDayOfTheWeek = DateTime.Now.DayOfWeek.ToString();
+                string C = "/";
+                if (StorageInt["Calendar_Divider"] == 1) C = "-";
+                if (StorageInt["Calendar_Divider"] == 2) C = " ";
+                CalendarString = "";
+                if (StorageInt["Calendar_DayOfTheWeek"] == 1) CalendarString += CalendarDayOfTheWeek + "    ";
+                if (StorageInt["Calendar_ExtraDigit"] == 1) CalendarYear += 10000;
+                if (StorageInt["Calendar_MonthName"] == 1)
+                {
+                    CalendarMonth = CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(Int32.Parse(CalendarMonth));
+                }
+                else if (StorageInt["Calendar_MonthName"] == 2)
+                {
+                    CalendarMonth = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(Int32.Parse(CalendarMonth));
+                }
+                if (StorageInt["Calendar_NumberEnding"] == 1) CalendarDay = AddOrdinal(Int32.Parse(CalendarDay));
+                switch (StorageInt["Calendar_Mode"])
+                {
+                    case 0:
+                        //Month, Day, Year
+                        if (StorageInt["Calendar_MonthName"] == 0)
+                        {
+                            CalendarString += CalendarMonth + C + CalendarDay + C + CalendarYear;
+                        }
+                        else
+                        {
+                            CalendarString += CalendarMonth + " " + CalendarDay + ", " + CalendarYear;
+                        }
+                        break;
+                    case 1:
+                        //Day, Month, Year
+                        if (StorageInt["Calendar_MonthName"] == 0)
+                        {
+                            CalendarString += CalendarDay + C + CalendarMonth + C + CalendarYear;
+                        }
+                        else
+                        {
+                            CalendarString += CalendarDay + " " + CalendarMonth + " " + CalendarYear;
+                        }
+                        break;
+                    case 2:
+                        //Year, Month, Day
+                        if (StorageInt["Calendar_MonthName"] == 0)
+                        {
+                            CalendarString += CalendarYear + C + CalendarMonth + C + CalendarDay;
+                        }
+                        else
+                        {
+                            CalendarString += CalendarYear + " " + CalendarMonth + " " + CalendarDay;
+                        }
+                        break;
+                    case 3:
+                        //Day, Month
+                        if (StorageInt["Calendar_MonthName"] == 0)
+                        {
+                            CalendarString += CalendarDay + C + CalendarMonth;
+                        }
+                        else
+                        {
+                            CalendarString += CalendarDay + " " + CalendarMonth;
+                        }
+                        break;
+                    case 4:
+                        //Month, Day
+                        if (StorageInt["Calendar_MonthName"] == 0)
+                        {
+                            CalendarString += CalendarMonth + C + CalendarDay;
+                        }
+                        else
+                        {
+                            CalendarString += CalendarMonth + " " + CalendarDay;
+                        }
+                        break;
+                    case 5:
+                        //Day
+                        CalendarString += CalendarDay;
+                        break;
+                    case 6:
+                        //Year
+                        CalendarString += CalendarYear;
+                        break;
+                }
+                if (StorageInt["Calendar_DayOfTheWeek"] == 2) CalendarString += "   " + CalendarDayOfTheWeek;
             }
             else
             {
-                TextOffset = 0;
+                CalendarString = " ";
+            }
+            if (StorageInt["Slide_Toggle"] == 1)
+            {
+                TextOffset = TextOffset - TextOffset * StorageInt["Slide_Speed"] * (float)gameTime.ElapsedGameTime.TotalSeconds;
             }
             InputHandling();
             if (UpPressed == 1)
@@ -338,6 +433,11 @@ namespace RetroMap
                     if (EntrySelection < 0)
                     {
                         EntrySelection = MenuEntriesList.Count - 1;
+                        TextOffset += TextSpread * (MenuEntriesList.Count - 1);
+                    }
+                    else
+                    {
+                        TextOffset -= TextSpread;
                     }
                 }
                 UpPrepared = false;
@@ -361,6 +461,11 @@ namespace RetroMap
                     if (EntrySelection == MenuEntriesList.Count)
                     {
                         EntrySelection = 0;
+                        TextOffset -= TextSpread * (MenuEntriesList.Count - 1);
+                    }
+                    else
+                    {
+                        TextOffset += TextSpread;
                     }
                 }
                 DownPrepared = false;
@@ -471,6 +576,14 @@ namespace RetroMap
                         SaveList.Add(StorageInt["Clock_Toggle"].ToString());
                         SaveList.Add(StorageInt["Clock_Mode"].ToString());
                         SaveList.Add(StorageInt["Clock_Seconds"].ToString());
+                        SaveList.Add(StorageInt["Clock_Position"].ToString());
+                        SaveList.Add(StorageInt["Calendar_Toggle"].ToString());
+                        SaveList.Add(StorageInt["Calendar_Mode"].ToString());
+                        SaveList.Add(StorageInt["Calendar_DayOfTheWeek"].ToString());
+                        SaveList.Add(StorageInt["Calendar_MonthName"].ToString());
+                        SaveList.Add(StorageInt["Calendar_NumberEnding"].ToString());
+                        SaveList.Add(StorageInt["Calendar_Divider"].ToString());
+                        SaveList.Add(StorageInt["Calendar_ExtraDigit"].ToString());
                         WriteToFile(RootConfig + @"\Clock.txt", SaveList);
                     }
                     if (SectionLast == 0 && MenuLast == 9)
@@ -536,6 +649,10 @@ namespace RetroMap
                 RebuildMenu(SectionSelection, MenuSelection);
                 ChangePrepared = false;
                 TimeSinceChange = 0;
+            }
+            if (StorageInt["Slide_Toggle"] == 0)
+            {
+                TextOffset = 0;
             }
             base.Update(gameTime);
         }
@@ -610,11 +727,11 @@ namespace RetroMap
                                 case 6:
                                     switch ((int)Math.Floor(TimeSinceChange))
                                     {
-                                        case 0: MenuEntriesDraw += "|      "; break;
-                                        case 1: MenuEntriesDraw += "||     "; break;
-                                        case 2: MenuEntriesDraw += "|||    "; break;
-                                        case 3: MenuEntriesDraw += "||||   "; break;
-                                        default: MenuEntriesDraw += "|||||  "; break;
+                                        case 0: MenuEntriesDraw += "|    "; break;
+                                        case 1: MenuEntriesDraw += "||   "; break;
+                                        case 2: MenuEntriesDraw += "|||  "; break;
+                                        case 3: MenuEntriesDraw += " ||  "; break;
+                                        default: MenuEntriesDraw += "  |  "; break;
                                     }
                                     break;
                                 case 7:
@@ -644,7 +761,7 @@ namespace RetroMap
                     }
                     if (CE.Type == 7)
                     {
-                        if (SectionSelection == 0 && MenuSelection == 3)
+                        if (MenuTitle == "Emulators Menu")
                         {
                             if (StorageInt[CE.Key] < EmulatorExes.Count)
                             {
@@ -662,32 +779,79 @@ namespace RetroMap
                                 }
                             }
                         }
-                        else if (SectionSelection == 0 && MenuSelection == 4 && i == 0)
+                        switch (MenuEntriesList[i].Key)
                         {
-                            MenuEntriesDraw += "" + MenuDisplayMode[StorageInt[CE.Key]].Width + "x" + MenuDisplayMode[StorageInt[CE.Key]].Height;
-                        }
-                        else if (SectionSelection == 0 && MenuSelection == 4 && i == 1)
-                        {
-                            MenuEntriesDraw += "" + MenuWindowMode[StorageInt[CE.Key]];
-                        }
-                        else if (MenuEntriesList[i].Key == "Background_Number")
-                        {
-                            if (StorageInt[CE.Key] == 0)
-                            {
-                                MenuEntriesDraw += "" + "Empty Background";
-                            }
-                            else if (StorageInt[CE.Key] == 1)
-                            {
-                                MenuEntriesDraw += "" + "Current Desktop Background";
-                            }
-                            else
-                            {
-                                MenuEntriesDraw += "" + BackgroundImages[StorageInt[CE.Key] - 2];
-                            }
-                        }
-                        else
-                        {
-                            MenuEntriesDraw += "" + StorageInt[CE.Key];
+                            case "Video_ScreenResolution":
+                                MenuEntriesDraw += "" + MenuDisplayMode[StorageInt[CE.Key]].Width + "x" + MenuDisplayMode[StorageInt[CE.Key]].Height;
+                                break;
+                            case "Video_ScreenMode":
+                                MenuEntriesDraw += "" + MenuWindowMode[StorageInt[CE.Key]];
+                                break;
+                            case "Background_Number":
+                                if (StorageInt[CE.Key] == 0)
+                                {
+                                    MenuEntriesDraw += "" + "Empty Background";
+                                }
+                                else if (StorageInt[CE.Key] == 1)
+                                {
+                                    MenuEntriesDraw += "" + "Current Desktop Background";
+                                }
+                                else
+                                {
+                                    MenuEntriesDraw += "" + BackgroundImages[StorageInt[CE.Key] - 2];
+                                }
+                                break;
+                            case "Clock_Mode":
+                                switch (StorageInt[CE.Key])
+                                {
+                                    case 0: MenuEntriesDraw += "" + "12 Hour Time"; break;
+                                    case 1: MenuEntriesDraw += "" + "24 Hour Time"; break;
+                                }
+                                break;
+                            case "Clock_Position":
+                                switch (StorageInt[CE.Key])
+                                {
+                                    case 0: MenuEntriesDraw += "" + "Line 1: Date, Time"; break;
+                                    case 1: MenuEntriesDraw += "" + "Line 1: Time | Line 2: Date"; break;
+                                    case 2: MenuEntriesDraw += "" + "Line 1: Date | Line 2: Time"; break;
+                                }
+                                break;
+                            case "Calendar_DayOfTheWeek":
+                                switch (StorageInt[CE.Key])
+                                {
+                                    case 0: MenuEntriesDraw += "" + "Off"; break;
+                                    case 1: MenuEntriesDraw += "" + "Left"; break;
+                                    case 2: MenuEntriesDraw += "" + "Right"; break;
+                                }
+                                break;
+                            case "Calendar_Mode":
+                                switch(StorageInt[CE.Key])
+                                {
+                                    case 0: MenuEntriesDraw += "" + "Month/Day/Year"; break;
+                                    case 1: MenuEntriesDraw += "" + "Day/Month/Year"; break;
+                                    case 2: MenuEntriesDraw += "" + "Year/Month/Day"; break;
+                                    case 3: MenuEntriesDraw += "" + "Day/Month"; break;
+                                    case 4: MenuEntriesDraw += "" + "Month/Day"; break;
+                                    case 5: MenuEntriesDraw += "" + "Day"; break;
+                                    case 6: MenuEntriesDraw += "" + "Year"; break;
+                                }
+                                break;
+                            case "Calendar_MonthName":
+                                switch (StorageInt[CE.Key])
+                                {
+                                    case 0: MenuEntriesDraw += "" + "Numbers"; break;
+                                    case 1: MenuEntriesDraw += "" + "Abbreviated"; break;
+                                    case 2: MenuEntriesDraw += "" + "Full"; break;
+                                }
+                                break;
+                            case "Calendar_Divider":
+                                switch (StorageInt[CE.Key])
+                                {
+                                    case 0: MenuEntriesDraw += "" + "Slashes (/)"; break;
+                                    case 1: MenuEntriesDraw += "" + "Dashes (-)"; break;
+                                    case 2: MenuEntriesDraw += "" + "Spaces ( )"; break;
+                                }
+                                break;
                         }
                     }
                     if (CE.Type == 8 || CE.Type == 11)
@@ -698,7 +862,21 @@ namespace RetroMap
                     DrawString(font, MenuEntriesDraw, TextPosition, 0, 0, Color.White);
                 }
             }
-            DrawString(font, TimeString, new Vector2(CurrentWidth, 0), 2, 0, Color.White);
+            switch (StorageInt["Clock_Position"])
+            {
+                case 0:
+                    if (StorageInt["Clock_Toggle"] == 1) DrawString(font, CalendarString + "    " + TimeString, new Vector2(CurrentWidth, 0), 2, 0, Color.White);
+                    else DrawString(font, CalendarString, new Vector2(CurrentWidth, 0), 2, 0, Color.White);
+                    break;
+                case 1:
+                    DrawString(font, TimeString, new Vector2(CurrentWidth, 0), 2, 0, Color.White);
+                    DrawString(font, CalendarString, new Vector2(CurrentWidth, TextSpread), 2, 0, Color.White);
+                    break;
+                case 2:
+                    DrawString(font, CalendarString, new Vector2(CurrentWidth, 0), 2, 0, Color.White);
+                    DrawString(font, TimeString, new Vector2(CurrentWidth, TextSpread), 2, 0, Color.White);
+                    break;
+            }
             DrawString(font, "RetroMap v3 Beta", new Vector2(CurrentWidth, CurrentHeight), 2, 2, Color.White);
             spriteBatch.End();
             base.Draw(gameTime);
@@ -931,285 +1109,147 @@ namespace RetroMap
                 {
                     case 0:
                         MenuSetup("Debug Menu");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryLink("Console Select", 0, 2, false, true); break;
-                                case 1: EntryLink("Emulator Select", 0, 3, false, true); break;
-                                case 2: EntryLink("Settings", 0, 1, false, true); break;
-                                case 3: EntryExit("Exit"); break;
-                            }
+                        DataManagement("Roms", false);
+                        DataManagement("System", false);
+                        while (CZ < StorageInt["Directory_Rom_Amount"]) EntryLink(new DirectoryInfo(@Systems[CZ]).Name, 1, CZ, false, true);
+                        if (StorageInt["Directory_Rom_Amount"] != 0)
+                        {
+                            EntryLink("----------", 0, 0, true, false);
+                        }
+                        EntryLink("Setup", 0, 1, false, true);
+                        EntryLink("Customize", 0, 7, false, true);
+                        EntryExit("Exit");
+                        MenuEnd();
                         break;
                     case 1:
                         MenuSetup("Settings Menu");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryLink("Graphics Settings", 0, 4, false, true); break;
-                                case 1: EntryLink("Menu Settings", 0, 7, false, true); break;
-                                case 2: EntryLink("Path Settings", 0, 11, false, true); break;
-                            }
+                        EntryLink("Emulator Matching", 0, 3, false, true);
+                        EntryLink("Graphics", 0, 4, false, true);
+                        EntryLink("Directories", 0, 11, false, true);
+                        MenuEnd();
                         break;
                     case 2:
                         MenuSetup("Systems Menu");
-                        DataManagement("Roms", false);
-                        DataManagement("System", false);
-                        for (CZ = 0; CZ < StorageInt["Directory_Rom_Amount"]; CZ++)
-                        {
-                            EntryLink(new DirectoryInfo(@Systems[CZ]).Name, 1, CZ, false, true);
-                        }
                         MenuEnd();
                         break;
                     case 3:
-                        MenuSetup("Emulators Menu"); DataManagement("Emulators", false); DataManagement("System", false);
-                        for (CZ = 0; !RebuildStop; CZ++)
-                        {
-                            if (CZ < Systems.Count) EntryOption(new DirectoryInfo(@Systems[CZ]).Name, "SystemEmulator_" + CZ, 2, 0, EmulatorExes.Count - 1, false);
-                            else MenuEnd();
-                        }
+                        DataManagement("Roms", false);
+                        DataManagement("Emulators", false);
+                        DataManagement("System", false);
+                        MenuSetup("Emulators Menu");
+                        while (CZ < Systems.Count) EntryOption(new DirectoryInfo(@Systems[CZ]).Name, "SystemEmulator_" + CZ, 2, 0, EmulatorExes.Count - 1, false);
+                        MenuEnd();
                         break;
                     case 4:
-                        MenuSetup("Settings"); DataManagement("Backgrounds", false);
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryOption("Resolution: ", "Video_ScreenResolution", 2, 0, MenuResolutionDisplay.Count - 1, false); break;
-                                case 1: EntryOption("Screen Mode: ", "Video_ScreenMode", 2, 0, 2, false); break;
-                            }
+                        DataManagement("Backgrounds", false);
+                        MenuSetup("Settings");
+                        EntryOption("Resolution: ", "Video_ScreenResolution", 2, 0, MenuResolutionDisplay.Count - 1, false);
+                        EntryOption("Screen Mode: ", "Video_ScreenMode", 2, 0, 2, false);
+                        MenuEnd();
                         break;
                     case 5:
                         MenuSetup("Audio");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryOption("Volume Master: ", "Audio_Master", 0, 0, 100, false); break;
-                                case 1: EntryOption("Volume SFX: ", "Audio_SFX", 0, 0, 100, false); break;
-                                case 2: EntryOption("Volume Music: ", "Audio_Music", 0, 0, 100, false); break;
-                            }
+                        EntryOption("Audio: ", "Audio_Toggle", 1, 0, 1, true);
+                        if (StorageInt["Audio_Toggle"] == 1)
+                        {
+                            EntryOption("       Volume Master: ", "Audio_Master", 0, 0, 100, false);
+                            EntryOption("       Volume SFX: ", "Audio_SFX", 0, 0, 100, false);
+                            EntryOption("       Volume Music: ", "Audio_Music", 0, 0, 100, false);
+                        }
+                        MenuEnd();
                         break;
                     case 6:
                         MenuSetup("Controls");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
+                        MenuEnd();
                         break;
                     case 7:
-                        MenuSetup("Options");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryLink("Audio Settings", 0, 5, false, true); break;
-                                case 1: EntryLink("Background Settings", 0, 15, false, true); break;
-                                case 2: EntryLink("Clock Settings", 0, 8, false, true); break;
-                                case 3: EntryLink("Control Settings", 0, 6, false, true); break;
-                                case 4: EntryLink("Font Settings", 0, 16, false, true); break;
-                                case 5: EntryLink("Slide Settings", 0, 9, false, true); break;
-                            }
+                        MenuSetup("Customize");
+                        EntryLink("Audio", 0, 5, false, true);
+                        EntryLink("Background", 0, 15, false, true);
+                        EntryLink("Clock", 0, 8, false, true);
+                        EntryLink("Controls", 0, 6, false, true);
+                        EntryLink("Font", 0, 16, false, true);
+                        EntryLink("Slide", 0, 9, false, true);
+                        MenuEnd();
                         break;
                     case 8:
                         MenuSetup("Clock");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryOption("Clock Toggle: ", "Clock_Toggle", 1, 0, 1, false); break;
-                                case 1: EntryOption("Clock Mode: ", "Clock_Mode", 2, 0, 1, false); break;
-                                case 2: EntryOption("Clock Seconds: ", "Clock_Seconds", 1, 0, 1, false); break;
-                            }
+                        EntryOption("Clock: ", "Clock_Toggle", 1, 0, 1, true);
+                        if (StorageInt["Clock_Toggle"] == 1)
+                        {
+                            EntryOption("       Mode: ", "Clock_Mode", 2, 0, 1, false);
+                            EntryOption("       Seconds: ", "Clock_Seconds", 1, 0, 1, false);
+                        }
+                        EntryOption("Calendar: ", "Calendar_Toggle", 1, 0, 1, true);
+                        if (StorageInt["Calendar_Toggle"] == 1)
+                        {
+                            EntryOption("       Mode: ", "Calendar_Mode", 2, 0, 6, false);
+                            EntryOption("       Day Of The Week: ", "Calendar_DayOfTheWeek", 2, 0, 2, false);
+                            EntryOption("       Month Name: ", "Calendar_MonthName", 2, 0, 2, false);
+                            EntryOption("       Number Ending: ", "Calendar_NumberEnding", 1, 0, 1, false);
+                            EntryOption("       Divider Style: ", "Calendar_Divider", 2, 0, 2, false);
+                            EntryOption("       Add 10000 To Year: ", "Calendar_ExtraDigit", 1, 0, 1, false);
+                        }
+                        if (StorageInt["Clock_Toggle"] == 1 || StorageInt["Calendar_Toggle"] == 1)
+                        {
+                            EntryOption("Layout: ", "Clock_Position", 2, 0, 2, false);
+                        }
+                        MenuEnd();
                         break;
                     case 9:
                         MenuSetup("Slide");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryOption("Slide Toggle: ", "Slide_Toggle", 1, 0, 1, false); break;
-                                case 1: EntryOption("Slide Speed: ", "Slide_Speed", 0, 0, 30, false); break;
-                            }
+                        EntryOption("Slide: ", "Slide_Toggle", 1, 0, 1, true);
+                        if (StorageInt["Slide_Toggle"] == 1)
+                        {
+                            EntryOption("       Slide Speed: ", "Slide_Speed", 0, 0, 30, false);
+                        }
+                        MenuEnd();
                         break;
                     case 10:
                         MenuSetup("Debug Functions");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
+                        MenuEnd();
                         break;
                     case 11:
                         MenuSetup("Path Hub");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryLink("Rom Folder Paths", 0, 12, false, true); break;
-                                case 1: EntryLink("Emulator Executable Paths", 0, 13, false, true); break;
-                                case 2: EntryLink("Background Folder Paths", 0, 14, false, true); break;
-                            }
+                        EntryLink("Rom Folders", 0, 12, false, true);
+                        EntryLink("Emulator Executables", 0, 13, false, true);
+                        EntryLink("Background Folders", 0, 14, false, true);
+                        MenuEnd();
                         break;
                     case 12:
                         MenuSetup("Rom Folder Paths");
-                        for (CZ = 0; CZ < StorageInt["Directory_Rom_Amount"] + 1; CZ++)
-                        {
-                            if (CZ == 0)
-                            {
-                                EntryOption("Rom Folders: ", "Directory_Rom_Amount", 0, 0, 250, true);
-                            }
-                            else
-                            {
-                                EntryExplorer("Folder " + CZ + ": ", "Directory_Rom_" + CZ, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 0);
-                            }
-                        }
+                        EntryOption("Rom Folders: ", "Directory_Rom_Amount", 0, 0, 250, true);
+                        while (CZ < StorageInt["Directory_Rom_Amount"] + 1) EntryExplorer("Folder " + CZ + ": ", "Directory_Rom_" + CZ, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 0);
                         MenuEnd();
                         break;
                     case 13:
                         MenuSetup("Emulator Paths");
-                        for (CZ = 0; CZ < StorageInt["Directory_Emulator_Amount"] + 1; CZ++)
-                        {
-                            if (CZ == 0)
-                            {
-                                EntryOption("Amount of Emulators: ", "Directory_Emulator_Amount", 0, 0, 250, true);
-                            }
-                            else
-                            {
-                                EntryExplorer("Emulator " + CZ + ": ", "Directory_Emulator_" + CZ, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 1);
-                            }
-                        }
+                        EntryOption("Amount of Emulators: ", "Directory_Emulator_Amount", 0, 0, 250, true);
+                        while (CZ < StorageInt["Directory_Emulator_Amount"] + 1) EntryExplorer("Emulator " + CZ + ": ", "Directory_Emulator_" + CZ, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 1);
                         MenuEnd();
                         break;
                     case 14:
                         MenuSetup("Background Paths");
-                        for (CZ = 0; CZ < StorageInt["Directory_Background_Amount"] + 1; CZ++)
-                        {
-                            if (CZ == 0)
-                            {
-                                EntryOption("Background Directories: ", "Directory_Background_Amount", 0, 0, 250, true);
-                            }
-                            else
-                            {
-                                EntryExplorer("BG" + CZ + ": ", "Directory_Background_" + CZ, Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), 0);
-                            }
-                        }
+                        EntryOption("Background Directories: ", "Directory_Background_Amount", 0, 0, 250, true);
+                        while (CZ < StorageInt["Directory_Background_Amount"] + 1) EntryExplorer("BG" + CZ + ": ", "Directory_Background_" + CZ, Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), 0);
                         MenuEnd();
                         break;
                     case 15:
-                        MenuSetup("Background Settings"); CreateBackground(StorageInt["Background_Number"]);
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryText("Background Use"); break; 
-                                case 1: EntryOption("Current Background: ", "Background_Number", 2, 0, BackgroundImages.Count + 1, true); break;
-                            }
+                        DataManagement("Backgrounds", false);
+                        MenuSetup("Background Settings");
+                        CreateBackground(StorageInt["Background_Number"]);
+                        EntryOption("Background: ", "Background_Number", 2, 0, BackgroundImages.Count + 1, true);
+                        MenuEnd();
                         break;
                     case 16:
                         MenuSetup("Font Settings");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                                case 0: EntryText("Current Font: Roboto"); break;
-                                case 1: EntryOption("Font Size: ", "Font_Size", 0, 12, 72, false); break;
-                            }
-                        break;
-                    case 17:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 18:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 19:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 20:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 21:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 22:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 23:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 24:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 25:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 26:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 27:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 28:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 29:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
-                        break;
-                    case 30:
-                        MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
+                        EntryText("Font: Roboto");
+                        EntryOption("Font Size: ", "Font_Size", 0, 12, 72, false);
+                        MenuEnd();
                         break;
                     default:
                         MenuSetup("Placeholder");
-                        for (CZ = 0; !RebuildStop; CZ++) switch (CZ)
-                            {
-                                default: MenuEnd(); break;
-                            }
+                        MenuEnd();
                         break;
                 }
             }
@@ -1218,21 +1258,18 @@ namespace RetroMap
                 MenuSetup(Systems[CY]);
                 string[] SystemsGames = Directory.GetFiles(Systems[CY]);
                 int SystemsGamesAmount = SystemsGames.Length;
-                for (CZ = 0; !RebuildStop; CZ++)
+                if (EmulatorExes.Count != 0)
                 {
-                    if (EmulatorExes.Count != 0)
+                    while (CZ < SystemsGamesAmount)
                     {
-                        if (CZ < SystemsGamesAmount)
-                        {
-                            if (Path.GetExtension(SystemsGames[CZ]) != ".sav") EntryProgram(SystemsGames[CZ].Replace((Systems[CY] + @"\"), "").Replace(Path.GetExtension(SystemsGames[CZ]),""), EmulatorExes[StorageInt["SystemEmulator_" + CY]], SystemsGames[CZ], "<FILE>");
-                        }
-                        else MenuEnd();
+                        if (Path.GetExtension(SystemsGames[CZ]) != ".sav") EntryProgram(SystemsGames[CZ].Replace((Systems[CY] + @"\"), "").Replace(Path.GetExtension(SystemsGames[CZ]), ""), EmulatorExes[StorageInt["SystemEmulator_" + CY]], SystemsGames[CZ], "<FILE>"); else CZ++;
                     }
-                    else
-                    {
-                        if (CZ < SystemsGamesAmount) EntryText(SystemsGames[CZ].Replace((Systems[CY] + @"\"), "") + " !!! No Emulators To Use!");
-                        else MenuEnd();
-                    }
+                    MenuEnd();
+                }
+                else
+                {
+                    EntryText("No Emulators Found!");
+                    MenuEnd();
                 }
             }
             else if (CX == 2)
@@ -1247,7 +1284,6 @@ namespace RetroMap
                         {
                             string ExplorerEntryTemp = d.Name;
                             EntryExplorerFolder(ExplorerEntryTemp);
-                            CZ++;
                         }
                     }
                     MenuEnd();
@@ -1264,7 +1300,7 @@ namespace RetroMap
                     }
                     else
                     {
-                        for (CZ = 0; CZ < TotalSlots; CZ++)
+                        while (CZ < TotalSlots)
                         {
                             if (CZ < ExplorerDirectories.Length)
                             {
@@ -1307,6 +1343,7 @@ namespace RetroMap
                     ShowFuture = Future,
                     Type = 0
                 });
+            CZ++;
         }
         void EntryText(string EntryString)
         {
@@ -1316,6 +1353,7 @@ namespace RetroMap
                     Number = CZ,
                     Type = 1
                 });
+            CZ++;
         }
         void EntryProgram(string EntryString, string ProgramString, string FileString, string CommandString)
         {
@@ -1328,6 +1366,7 @@ namespace RetroMap
                     Command = CommandString.Replace("<PROG>", ProgramString).Replace("<FILE>", FileString),
                     Type = 2
                 });
+            CZ++;
         }
         void EntryExit(string EntryString)
         {
@@ -1337,6 +1376,7 @@ namespace RetroMap
                     Number = CZ,
                     Type = 3
                 });
+            CZ++;
         }
         void EntryBack(string EntryString)
         {
@@ -1346,6 +1386,7 @@ namespace RetroMap
                     Number = CZ,
                     Type = 4
                 });
+            CZ++;
         }
         void EntryOption(string EntryString, string EntryKey, int OptionType, int MinimumIntAllowed, int MaximumIntAllowed, bool RebuildOnChange)
         {
@@ -1381,6 +1422,7 @@ namespace RetroMap
                     Maximum = MaximumIntAllowed,
                     RebuildOnChange = RebuildOnChange,
                 });
+            CZ++;
         }
         void EntryExplorer(string EntryString, string EntryKey, string StartingDirectory, int Purpose)
         {
@@ -1397,6 +1439,7 @@ namespace RetroMap
             {
                 StorageString.Add(MenuEntriesList[MenuEntriesList.Count - 1].Key, "");
             }
+            CZ++;
         }
         void EntryExplorerFolder(string EntryString)
         {
@@ -1406,6 +1449,7 @@ namespace RetroMap
                     Number = CZ,
                     Type = 9
                 });
+            CZ++;
         }
         void EntryExplorerFile(string EntryString)
         {
@@ -1415,6 +1459,7 @@ namespace RetroMap
                     Number = CZ,
                     Type = 10
                 });
+            CZ++;
         }
         void EntryString(string EntryString, string EntryKey)
         {
@@ -1429,6 +1474,7 @@ namespace RetroMap
             {
                 StorageString.Add(MenuEntriesList[MenuEntriesList.Count - 1].Key, "");
             }
+            CZ++;
         }
 
         void DataManagement(string Element, bool OnBoot)
@@ -1444,19 +1490,38 @@ namespace RetroMap
                         {
                             VideoStorage = ReadFromFile(RootConfig + @"\Roms.txt");
                             int c = 0;
-                            if (VideoStorage.Count > c) StorageInt["Directory_Rom_Amount"] = Int32.Parse(VideoStorage[0]); else StorageInt["Directory_Rom_Amount"] = 0; c++;
+                            if (VideoStorage.Count > 0) StorageInt["Directory_Rom_Amount"] = Int32.Parse(VideoStorage[0]); else StorageInt["Directory_Rom_Amount"] = 0; c++;
                             while (c < VideoStorage.Count)
                             {
-                                StorageString["Directory_Rom_" + c] = VideoStorage[c];
-                                c++;
+                                if (VideoStorage[c] == "")
+                                {
+                                    VideoStorage.RemoveAt(c);
+                                    StorageInt["Directory_Rom_Amount"]--;
+                                }
+                                else
+                                {
+                                    StorageString["Directory_Rom_" + c] = VideoStorage[c];
+                                    c++;
+                                }
                             }
                         }
                         else
                         {
                             VideoStorage.Add(StorageInt["Directory_Rom_Amount"].ToString());
+                            List<int> dfind = new List<int>();
                             for (int i = 0; i < StorageInt["Directory_Rom_Amount"]; i++)
                             {
+                                if (StorageString["Directory_Rom_" + (i + 1)] == "")
+                                {
+                                    dfind.Add((i + 1));
+                                }
                                 VideoStorage.Add(StorageString["Directory_Rom_" + (i + 1)]);
+                            }
+                            while (dfind.Count > 0)
+                            {
+                                VideoStorage.RemoveAt(dfind[dfind.Count-1]);
+                                dfind.RemoveAt(dfind.Count-1);
+                                StorageInt["Directory_Rom_Amount"]--;
                             }
                         }
                         for (int i = 0; i < StorageInt["Directory_Rom_Amount"]; i++)
@@ -1466,6 +1531,7 @@ namespace RetroMap
                                 if (VideoStorage[i + 1] != null)
                                 {
                                     Systems.Add(VideoStorage[i + 1]);
+                                    StorageString["Directory_Rom_" + (i + 1)] = VideoStorage[i + 1];
                                 }
                             }
                         }
@@ -1606,6 +1672,10 @@ namespace RetroMap
                                 }
                             }
                         }
+                        if (StorageInt["Background_Number"] > BackgroundImages.Count)
+                        {
+                            StorageInt["Background_Number"] = 1;
+                        }
                     }
                     else
                     {
@@ -1650,6 +1720,14 @@ namespace RetroMap
                         if (VideoStorage.Count > c) StorageInt["Clock_Toggle"] = Int32.Parse(VideoStorage[c]); c++;
                         if (VideoStorage.Count > c) StorageInt["Clock_Mode"] = Int32.Parse(VideoStorage[c]); c++;
                         if (VideoStorage.Count > c) StorageInt["Clock_Seconds"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Clock_Position"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Calendar_Toggle"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Calendar_Mode"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Calendar_DayOfTheWeek"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Calendar_MonthName"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Calendar_NumberEnding"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Calendar_Divider"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Calendar_ExtraDigit"] = Int32.Parse(VideoStorage[c]); c++;
                     }
                     else
                     {
@@ -1657,7 +1735,15 @@ namespace RetroMap
                         {
                             StorageInt["Clock_Toggle"].ToString(),
                             StorageInt["Clock_Mode"].ToString(),
-                            StorageInt["Clock_Seconds"].ToString()
+                            StorageInt["Clock_Seconds"].ToString(),
+                            StorageInt["Clock_Position"].ToString(),
+                            StorageInt["Calendar_Toggle"].ToString(),
+                            StorageInt["Calendar_Mode"].ToString(),
+                            StorageInt["Calendar_DayOfTheWeek"].ToString(),
+                            StorageInt["Calendar_MonthName"].ToString(),
+                            StorageInt["Calendar_NumberEnding"].ToString(),
+                            StorageInt["Calendar_Divider"].ToString(),
+                            StorageInt["Calendar_ExtraDigit"].ToString()
                         };
                         WriteToFile(RootConfig + @"\Clock.txt", VideoStorage);
                     }
@@ -1745,6 +1831,7 @@ namespace RetroMap
             StorageInt.Add("Video_ScreenHeight", 720);
             StorageInt.Add("Video_ScreenMode", 2);
             StorageInt.Add("Video_ScreenRefreshRate", 60);
+            StorageInt.Add("Audio_Toggle", 1);
             StorageInt.Add("Audio_Master", 50);
             StorageInt.Add("Audio_SFX", 50);
             StorageInt.Add("Audio_Music", 50);
@@ -1752,10 +1839,18 @@ namespace RetroMap
             StorageInt.Add("Background_Number", 1);
             StorageInt.Add("Background_Amount", 0);
             StorageInt.Add("Slide_Toggle", 1);
-            StorageInt.Add("Slide_Speed", 15);
+            StorageInt.Add("Slide_Speed", 12);
             StorageInt.Add("Clock_Toggle", 1);
             StorageInt.Add("Clock_Mode", 0);
             StorageInt.Add("Clock_Seconds", 0);
+            StorageInt.Add("Clock_Position", 0);
+            StorageInt.Add("Calendar_Toggle", 1);
+            StorageInt.Add("Calendar_Mode", 0);
+            StorageInt.Add("Calendar_DayOfTheWeek", 1);
+            StorageInt.Add("Calendar_MonthName", 0);
+            StorageInt.Add("Calendar_NumberEnding", 0);
+            StorageInt.Add("Calendar_Divider", 0);
+            StorageInt.Add("Calendar_ExtraDigit", 0);
             StorageInt.Add("Font_Size", 21);
             StorageInt.Add("Directory_Background_Amount", 0);
             StorageInt.Add("Directory_Emulator_Amount", 0);
@@ -1902,6 +1997,31 @@ namespace RetroMap
             {
                 return false;
             }
+        }
+        public static string AddOrdinal(int num)
+        {
+            if (num <= 0) return num.ToString();
+
+            switch (num % 100)
+            {
+                case 11:
+                case 12:
+                case 13:
+                    return num + "th";
+            }
+
+            switch (num % 10)
+            {
+                case 1:
+                    return num + "st";
+                case 2:
+                    return num + "nd";
+                case 3:
+                    return num + "rd";
+                default:
+                    return num + "th";
+            }
+
         }
 
         public class Entry
