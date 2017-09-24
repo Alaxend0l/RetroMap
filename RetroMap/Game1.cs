@@ -28,8 +28,6 @@ namespace RetroMap
         List<string> BackgroundImages;
         int CurrentWidth;
         int CurrentHeight;
-        int MaxSections;
-        int MaxMenus;
         int MenuDepth;
         int SectionSelection;
         int MenuSelection;
@@ -48,6 +46,8 @@ namespace RetroMap
         float HoldThreshold;
         float HoldReducePerClick;
         float HoldCurrent;
+        string TextSelectionIcon;
+        string TextValue;
         Vector2 TextScale;
         float TextSpread;
         float TextOffset;
@@ -59,9 +59,6 @@ namespace RetroMap
         int MenuLast;
         int[] EntryAccess; //Menu item selected in past menu screens.
         string MenuTitle; //Titles of each menu
-        bool[,] MenuOptions;
-        bool[,] MenuOptionsSave;
-        string[,] MenuOptionsString;
         List<int> MenuOptionsLocations;
         List<string>[] MenuSystemLoad;
         List<string> MenuResolutionDisplay;
@@ -73,6 +70,8 @@ namespace RetroMap
         string ExplorerLocation;
         List<Entry> MenuEntriesList;
         string MenuEntriesDraw; //Menu strings to be drawn on-screen
+        string RetroMapTrademark;
+        int BuildNumber;
         float TimeSinceChange;
 
         Dictionary<string, int> StorageInt = new Dictionary<string, int>();
@@ -85,7 +84,6 @@ namespace RetroMap
         int CX;
         int CY;
         int CZ;
-        bool RebuildStop;
 
         public Game1()
         {
@@ -98,7 +96,8 @@ namespace RetroMap
 
         protected override void Initialize()
         {
-            DebugMode = false;
+            RetroMapTrademark = "RetroMap v4";
+            DebugMode = true;
             this.IsMouseVisible = true;
             Root = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + @"\RetroMap\";
             RootConfig = Root + @"Config\";
@@ -107,8 +106,6 @@ namespace RetroMap
             Systems = new List<string>();
             BackgroundImages = new List<string>();
             EmulatorExes = new List<string>();
-            MaxSections = 16;
-            MaxMenus = 64;
             StorageBuildOnBoot();
             MenuResolutionDisplay = new List<string>();
             MenuDisplayMode = new List<DisplayMode>();
@@ -126,9 +123,6 @@ namespace RetroMap
             SectionPast = new int[100];
             MenuPast = new int[100];
             EntryAccess = new int[100];
-            MenuOptions = new bool[MaxSections, MaxMenus];
-            MenuOptionsSave = new bool[MaxSections, MaxMenus];
-            MenuOptionsString = new string[MaxSections, MaxMenus];
             MenuOptionsLocations = new List<int>();
             DataManagement("Roms", true);
             DataManagement("Emulators", true);
@@ -140,6 +134,7 @@ namespace RetroMap
             DataManagement("Slide", true);
             DataManagement("Audio", true);
             DataManagement("Font", true);
+            if (DebugMode) DataManagement("Build", true);
             RebuildMenu(SectionSelection, MenuSelection);
         }
 
@@ -382,7 +377,6 @@ namespace RetroMap
                     MenuSelection = MenuPast[MenuDepth];
                     EntrySelection = EntryAccess[MenuDepth];
                     ChangePrepared = true;
-                    MenuOptionsSave[SectionSelection, MenuSelection] = true;
                 }
             }
             if (BackPressed == 1)
@@ -480,7 +474,6 @@ namespace RetroMap
                     {
                         StorageInt[CE.Key] = CE.Maximum;
                     }
-                    MenuOptionsSave[SectionSelection, MenuSelection] = true;
                     if (CE.RebuildOnChange)
                     {
                         ClearMenu();
@@ -533,7 +526,6 @@ namespace RetroMap
                     {
                         StorageInt[CE.Key] = CE.Minimum;
                     }
-                    MenuOptionsSave[SectionSelection, MenuSelection] = true;
                     if (CE.RebuildOnChange)
                     {
                         ClearMenu();
@@ -551,54 +543,57 @@ namespace RetroMap
             }
             if (ChangePrepared)
             {
-                if (MenuOptionsSave[SectionLast, MenuLast])
+                if (SectionLast == 0 && MenuLast == 3)
                 {
-                    if (SectionLast == 0 && MenuLast == 3)
+                    List<string> SaveList = new List<string>();
+                    for (CX = 0; CX < MenuEntriesList.Count; CX++)
                     {
-                        List<string> SaveList = new List<string>();
-                        for (CX = 0; CX < MenuEntriesList.Count; CX++)
-                        {
-                            SaveList.Add(StorageInt["SystemEmulator_" + CX].ToString());
-                        }
-                        WriteToFile(RootConfig + @"\System.txt", SaveList);
+                        SaveList.Add(StorageInt["SystemEmulator_" + CX].ToString());
                     }
-                    if (SectionLast == 0 && MenuLast == 5)
-                    {
-                        List<string> SaveList = new List<string>();
-                        SaveList.Add(StorageInt["Audio_Master"].ToString());
-                        SaveList.Add(StorageInt["Audio_SFX"].ToString());
-                        SaveList.Add(StorageInt["Audio_Music"].ToString());
-                        WriteToFile(RootConfig + @"\Audio.txt", SaveList);
-                    }
-                    if (SectionLast == 0 && MenuLast == 8)
-                    {
-                        List<string> SaveList = new List<string>();
-                        SaveList.Add(StorageInt["Clock_Toggle"].ToString());
-                        SaveList.Add(StorageInt["Clock_Mode"].ToString());
-                        SaveList.Add(StorageInt["Clock_Seconds"].ToString());
-                        SaveList.Add(StorageInt["Clock_Position"].ToString());
-                        SaveList.Add(StorageInt["Calendar_Toggle"].ToString());
-                        SaveList.Add(StorageInt["Calendar_Mode"].ToString());
-                        SaveList.Add(StorageInt["Calendar_DayOfTheWeek"].ToString());
-                        SaveList.Add(StorageInt["Calendar_MonthName"].ToString());
-                        SaveList.Add(StorageInt["Calendar_NumberEnding"].ToString());
-                        SaveList.Add(StorageInt["Calendar_Divider"].ToString());
-                        SaveList.Add(StorageInt["Calendar_ExtraDigit"].ToString());
-                        WriteToFile(RootConfig + @"\Clock.txt", SaveList);
-                    }
-                    if (SectionLast == 0 && MenuLast == 9)
-                    {
-                        List<string> SaveList = new List<string>();
-                        SaveList.Add(StorageInt["Slide_Toggle"].ToString());
-                        SaveList.Add(StorageInt["Slide_Speed"].ToString());
-                        WriteToFile(RootConfig + @"\Slide.txt", SaveList);
-                    }
-                    if (SectionLast == 0 && MenuLast == 16)
-                    {
-                        List<string> SaveList = new List<string>();
-                        SaveList.Add(StorageInt["Font_Size"].ToString());
-                        WriteToFile(RootConfig + @"\Fonts.txt", SaveList);
-                    }
+                    WriteToFile(RootConfig + @"\System.txt", SaveList);
+                }
+                if (SectionLast == 0 && MenuLast == 5)
+                {
+                    List<string> SaveList = new List<string>();
+                    SaveList.Add(StorageInt["Audio_Master"].ToString());
+                    SaveList.Add(StorageInt["Audio_SFX"].ToString());
+                    SaveList.Add(StorageInt["Audio_Music"].ToString());
+                    WriteToFile(RootConfig + @"\Audio.txt", SaveList);
+                }
+                if (SectionLast == 0 && MenuLast == 8)
+                {
+                    List<string> SaveList = new List<string>();
+                    SaveList.Add(StorageInt["Clock_Toggle"].ToString());
+                    SaveList.Add(StorageInt["Clock_Mode"].ToString());
+                    SaveList.Add(StorageInt["Clock_Seconds"].ToString());
+                    SaveList.Add(StorageInt["Clock_Position"].ToString());
+                    SaveList.Add(StorageInt["Calendar_Toggle"].ToString());
+                    SaveList.Add(StorageInt["Calendar_Mode"].ToString());
+                    SaveList.Add(StorageInt["Calendar_DayOfTheWeek"].ToString());
+                    SaveList.Add(StorageInt["Calendar_MonthName"].ToString());
+                    SaveList.Add(StorageInt["Calendar_NumberEnding"].ToString());
+                    SaveList.Add(StorageInt["Calendar_Divider"].ToString());
+                    SaveList.Add(StorageInt["Calendar_ExtraDigit"].ToString());
+                    WriteToFile(RootConfig + @"\Clock.txt", SaveList);
+                }
+                if (SectionLast == 0 && MenuLast == 9)
+                {
+                    List<string> SaveList = new List<string>();
+                    SaveList.Add(StorageInt["Slide_Toggle"].ToString());
+                    SaveList.Add(StorageInt["Slide_Speed"].ToString());
+                    WriteToFile(RootConfig + @"\Slide.txt", SaveList);
+                }
+                if (SectionLast == 0 && MenuLast == 16)
+                {
+                    List<string> SaveList = new List<string>();
+                    SaveList.Add(StorageInt["Font_Size"].ToString());
+                    SaveList.Add(StorageInt["Text_Position_X"].ToString());
+                    SaveList.Add(StorageInt["Text_Position_Y"].ToString());
+                    SaveList.Add(StorageInt["Text_Alignment"].ToString());
+                    SaveList.Add(StorageInt["Text_Warp_X"].ToString());
+                    SaveList.Add(StorageInt["Text_Warp_Y"].ToString());
+                    SaveList.Add(StorageInt["Text_Warp_Z"].ToString());
+                    WriteToFile(RootConfig + @"\Fonts.txt", SaveList);
                 }
                 if (SectionLast == 0 && MenuLast == 15)
                 {
@@ -672,196 +667,44 @@ namespace RetroMap
             {
                 TimeSinceChange = 5;
             }
-            spriteBatch.Begin();
+            Matrix matrix =
+                Matrix.CreateTranslation(CurrentWidth/2, CurrentHeight/2, 0) *
+                Matrix.CreateRotationX(MathHelper.ToRadians(StorageInt["Text_Warp_X"])) *
+                Matrix.CreateRotationY(MathHelper.ToRadians(StorageInt["Text_Warp_Y"])) *
+                Matrix.CreateRotationZ(MathHelper.ToRadians(StorageInt["Text_Warp_Z"])) *
+                Matrix.CreateScale(1, 1, 0);
+
+            spriteBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, null, matrix);
             for (int i = 0; i < MenuEntriesList.Count; i++)
             {
-                float TextOrigin = CurrentHeight / 2;
-                float TextListY = i * TextSpread;
+                float TextOrigin = CurrentHeight / 100 * StorageInt["Text_Position_Y"] - CurrentHeight / 2;
+                float TextListY = (i+1) * TextSpread;
                 float TextEntryY = EntrySelection * TextSpread;
                 float TextFinalY = TextListY - TextEntryY;
                 float TextX = 0;
                 float TextY = TextOrigin + TextFinalY + TextOffset;
-                if (TextY > (-TextSpread) && TextY < CurrentHeight + TextSpread)
+                Vector2 TextPosition = new Vector2(TextX, TextY);
+                if (TextY > (-TextSpread + -CurrentHeight) && TextY < CurrentHeight + TextSpread)
                 {
                     Entry CE = MenuEntriesList[i];
                     MenuEntriesDraw = "";
-                    if (i == EntrySelection)
+                    TextSelectionIcon = "";
+                    TextValue = "";
+                    if (i == EntrySelection) AddSelectionIcon();
+                    AddTextValue(CE, i);
+                    switch (StorageInt["Text_Alignment"])
                     {
-                        if (DebugMode)
-                        {
-                            MenuEntriesDraw += "|" + SectionSelection + "|" + MenuSelection + "|" + EntrySelection + "| ";
-                        }
-                        else
-                        {
-                            switch (StorageInt["Text_Selection_Icon"])
-                            {
-                                default: MenuEntriesDraw += ">>> "; break;
-                                case 1: MenuEntriesDraw += "> "; break;
-                                case 2: MenuEntriesDraw += "||| "; break;
-                                case 3:
-                                    switch ((int)DateTime.Now.Ticks)
-                                    {
-                                        default: MenuEntriesDraw += (DateTime.Now.Ticks % 10000000) / (1000) + " "; break;
-                                    }
-                                    break;
-                                case 4:
-                                    switch ((DateTime.Now.Ticks % 10000000) / (2000000))
-                                    {
-                                        case 0: MenuEntriesDraw += "|||    "; break;
-                                        case 1: MenuEntriesDraw += " |||   "; break;
-                                        case 2: MenuEntriesDraw += "  |||  "; break;
-                                        case 3: MenuEntriesDraw += "|  ||  "; break;
-                                        case 4: MenuEntriesDraw += "||  |  "; break;
-                                    }
-                                    break;
-                                case 5:
-                                    switch ((DateTime.Now.Ticks % 5000000) / (1000000))
-                                    {
-                                        case 0: MenuEntriesDraw += "|||    "; break;
-                                        case 1: MenuEntriesDraw += " |||   "; break;
-                                        case 2: MenuEntriesDraw += "  |||  "; break;
-                                        case 3: MenuEntriesDraw += "|  ||  "; break;
-                                        case 4: MenuEntriesDraw += "||  |  "; break;
-                                    }
-                                    break;
-                                case 6:
-                                    switch ((int)Math.Floor(TimeSinceChange))
-                                    {
-                                        case 0: MenuEntriesDraw += "|    "; break;
-                                        case 1: MenuEntriesDraw += "||   "; break;
-                                        case 2: MenuEntriesDraw += "|||  "; break;
-                                        case 3: MenuEntriesDraw += " ||  "; break;
-                                        default: MenuEntriesDraw += "  |  "; break;
-                                    }
-                                    break;
-                                case 7:
-                                    switch ((int)Math.Floor(TimeSinceChange))
-                                    {
-                                        case 0: MenuEntriesDraw += "|  "; break;
-                                        case 1: MenuEntriesDraw += "||  "; break;
-                                        case 2: MenuEntriesDraw += "|||  "; break;
-                                        case 3: MenuEntriesDraw += "||||  "; break;
-                                        default: MenuEntriesDraw += "|||||  "; break;
-                                    }
-                                    break;
-                            }
-                        }
+                        case 0: MenuEntriesDraw = TextSelectionIcon + CE.Title + TextValue; break;
+                        case 1: MenuEntriesDraw = TextSelectionIcon + CE.Title + TextValue + Reverse(TextSelectionIcon); break;
+                        case 2: MenuEntriesDraw = CE.Title + TextValue + Reverse(TextSelectionIcon); break;
                     }
-                    MenuEntriesDraw += CE.Title;
-                    if (CE.Type == 5)
-                    {
-                        MenuEntriesDraw += "" + StorageInt[CE.Key];
-                    }
-                    if (CE.Type == 6)
-                    {
-                        string[] ToggleString = new string[2];
-                        ToggleString[0] = "Off";
-                        ToggleString[1] = "On";
-                        MenuEntriesDraw += "" + ToggleString[StorageInt[CE.Key]];
-                    }
-                    if (CE.Type == 7)
-                    {
-                        if (MenuTitle == "Emulators Menu")
-                        {
-                            if (StorageInt[CE.Key] < EmulatorExes.Count)
-                            {
-                                MenuEntriesDraw += " | " + EmulatorExes[StorageInt[CE.Key]];
-                            }
-                            else
-                            {
-                                if (EmulatorExes.Count == 0)
-                                {
-                                    MenuEntriesDraw += " | Error: No Emulators Found";
-                                }
-                                else
-                                {
-                                    MenuEntriesDraw += " | Error: Emulator # is too high!";
-                                }
-                            }
-                        }
-                        switch (MenuEntriesList[i].Key)
-                        {
-                            case "Video_ScreenResolution":
-                                MenuEntriesDraw += "" + MenuDisplayMode[StorageInt[CE.Key]].Width + "x" + MenuDisplayMode[StorageInt[CE.Key]].Height;
-                                break;
-                            case "Video_ScreenMode":
-                                MenuEntriesDraw += "" + MenuWindowMode[StorageInt[CE.Key]];
-                                break;
-                            case "Background_Number":
-                                if (StorageInt[CE.Key] == 0)
-                                {
-                                    MenuEntriesDraw += "" + "Empty Background";
-                                }
-                                else if (StorageInt[CE.Key] == 1)
-                                {
-                                    MenuEntriesDraw += "" + "Current Desktop Background";
-                                }
-                                else
-                                {
-                                    MenuEntriesDraw += "" + BackgroundImages[StorageInt[CE.Key] - 2];
-                                }
-                                break;
-                            case "Clock_Mode":
-                                switch (StorageInt[CE.Key])
-                                {
-                                    case 0: MenuEntriesDraw += "" + "12 Hour Time"; break;
-                                    case 1: MenuEntriesDraw += "" + "24 Hour Time"; break;
-                                }
-                                break;
-                            case "Clock_Position":
-                                switch (StorageInt[CE.Key])
-                                {
-                                    case 0: MenuEntriesDraw += "" + "Line 1: Date, Time"; break;
-                                    case 1: MenuEntriesDraw += "" + "Line 1: Time | Line 2: Date"; break;
-                                    case 2: MenuEntriesDraw += "" + "Line 1: Date | Line 2: Time"; break;
-                                }
-                                break;
-                            case "Calendar_DayOfTheWeek":
-                                switch (StorageInt[CE.Key])
-                                {
-                                    case 0: MenuEntriesDraw += "" + "Off"; break;
-                                    case 1: MenuEntriesDraw += "" + "Left"; break;
-                                    case 2: MenuEntriesDraw += "" + "Right"; break;
-                                }
-                                break;
-                            case "Calendar_Mode":
-                                switch(StorageInt[CE.Key])
-                                {
-                                    case 0: MenuEntriesDraw += "" + "Month/Day/Year"; break;
-                                    case 1: MenuEntriesDraw += "" + "Day/Month/Year"; break;
-                                    case 2: MenuEntriesDraw += "" + "Year/Month/Day"; break;
-                                    case 3: MenuEntriesDraw += "" + "Day/Month"; break;
-                                    case 4: MenuEntriesDraw += "" + "Month/Day"; break;
-                                    case 5: MenuEntriesDraw += "" + "Day"; break;
-                                    case 6: MenuEntriesDraw += "" + "Year"; break;
-                                }
-                                break;
-                            case "Calendar_MonthName":
-                                switch (StorageInt[CE.Key])
-                                {
-                                    case 0: MenuEntriesDraw += "" + "Numbers"; break;
-                                    case 1: MenuEntriesDraw += "" + "Abbreviated"; break;
-                                    case 2: MenuEntriesDraw += "" + "Full"; break;
-                                }
-                                break;
-                            case "Calendar_Divider":
-                                switch (StorageInt[CE.Key])
-                                {
-                                    case 0: MenuEntriesDraw += "" + "Slashes (/)"; break;
-                                    case 1: MenuEntriesDraw += "" + "Dashes (-)"; break;
-                                    case 2: MenuEntriesDraw += "" + "Spaces ( )"; break;
-                                }
-                                break;
-                        }
-                    }
-                    if (CE.Type == 8 || CE.Type == 11)
-                    {
-                        MenuEntriesDraw += "" + StorageString[CE.Key];
-                    }
-                    Vector2 TextPosition = new Vector2(TextX, TextY);
-                    DrawString(font, MenuEntriesDraw, TextPosition, 0, 0, Color.White);
+                    TextX = CurrentWidth / 100 * StorageInt["Text_Position_X"] - CurrentWidth / 2;
+                    TextPosition = new Vector2(TextX, TextY);
+                    DrawString(font, MenuEntriesDraw, TextPosition, StorageInt["Text_Alignment"], 1, Color.White);
                 }
             }
+            spriteBatch.End();
+            spriteBatch.Begin();
             switch (StorageInt["Clock_Position"])
             {
                 case 0:
@@ -877,7 +720,7 @@ namespace RetroMap
                     DrawString(font, TimeString, new Vector2(CurrentWidth, TextSpread), 2, 0, Color.White);
                     break;
             }
-            DrawString(font, "RetroMap v3 Beta", new Vector2(CurrentWidth, CurrentHeight), 2, 2, Color.White);
+            DrawString(font, RetroMapTrademark, new Vector2(CurrentWidth, CurrentHeight), 2, 2, Color.White);
             spriteBatch.End();
             base.Draw(gameTime);
         }
@@ -1101,7 +944,6 @@ namespace RetroMap
             CX = X;
             CY = Y;
             CZ = 0;
-            RebuildStop = false;
             MenuOptionsLocations.Clear();
             if (CX == 0)
             {
@@ -1114,7 +956,7 @@ namespace RetroMap
                         while (CZ < StorageInt["Directory_Rom_Amount"]) EntryLink(new DirectoryInfo(@Systems[CZ]).Name, 1, CZ, false, true);
                         if (StorageInt["Directory_Rom_Amount"] != 0)
                         {
-                            EntryLink("----------", 0, 0, true, false);
+                            EntryLink("", 0, 0, true, false);
                         }
                         EntryLink("Setup", 0, 1, false, true);
                         EntryLink("Customize", 0, 7, false, true);
@@ -1152,9 +994,9 @@ namespace RetroMap
                         EntryOption("Audio: ", "Audio_Toggle", 1, 0, 1, true);
                         if (StorageInt["Audio_Toggle"] == 1)
                         {
-                            EntryOption("       Volume Master: ", "Audio_Master", 0, 0, 100, false);
-                            EntryOption("       Volume SFX: ", "Audio_SFX", 0, 0, 100, false);
-                            EntryOption("       Volume Music: ", "Audio_Music", 0, 0, 100, false);
+                            EntryOption("Volume Master: ", "Audio_Master", 0, 0, 100, false);
+                            EntryOption("Volume SFX: ", "Audio_SFX", 0, 0, 100, false);
+                            EntryOption("Volume Music: ", "Audio_Music", 0, 0, 100, false);
                         }
                         MenuEnd();
                         break;
@@ -1168,8 +1010,8 @@ namespace RetroMap
                         EntryLink("Background", 0, 15, false, true);
                         EntryLink("Clock", 0, 8, false, true);
                         EntryLink("Controls", 0, 6, false, true);
-                        EntryLink("Font", 0, 16, false, true);
                         EntryLink("Slide", 0, 9, false, true);
+                        EntryLink("Text", 0, 16, false, true);
                         MenuEnd();
                         break;
                     case 8:
@@ -1177,18 +1019,18 @@ namespace RetroMap
                         EntryOption("Clock: ", "Clock_Toggle", 1, 0, 1, true);
                         if (StorageInt["Clock_Toggle"] == 1)
                         {
-                            EntryOption("       Mode: ", "Clock_Mode", 2, 0, 1, false);
-                            EntryOption("       Seconds: ", "Clock_Seconds", 1, 0, 1, false);
+                            EntryOption("Mode: ", "Clock_Mode", 2, 0, 1, false);
+                            EntryOption("Seconds: ", "Clock_Seconds", 1, 0, 1, false);
                         }
                         EntryOption("Calendar: ", "Calendar_Toggle", 1, 0, 1, true);
                         if (StorageInt["Calendar_Toggle"] == 1)
                         {
-                            EntryOption("       Mode: ", "Calendar_Mode", 2, 0, 6, false);
-                            EntryOption("       Day Of The Week: ", "Calendar_DayOfTheWeek", 2, 0, 2, false);
-                            EntryOption("       Month Name: ", "Calendar_MonthName", 2, 0, 2, false);
-                            EntryOption("       Number Ending: ", "Calendar_NumberEnding", 1, 0, 1, false);
-                            EntryOption("       Divider Style: ", "Calendar_Divider", 2, 0, 2, false);
-                            EntryOption("       Add 10000 To Year: ", "Calendar_ExtraDigit", 1, 0, 1, false);
+                            EntryOption("Mode: ", "Calendar_Mode", 2, 0, 6, false);
+                            EntryOption("Day Of The Week: ", "Calendar_DayOfTheWeek", 2, 0, 2, false);
+                            EntryOption("Month Name: ", "Calendar_MonthName", 2, 0, 2, false);
+                            EntryOption("Number Ending: ", "Calendar_NumberEnding", 1, 0, 1, false);
+                            EntryOption("Divider Style: ", "Calendar_Divider", 2, 0, 2, false);
+                            EntryOption("Add 10000 To Year: ", "Calendar_ExtraDigit", 1, 0, 1, false);
                         }
                         if (StorageInt["Clock_Toggle"] == 1 || StorageInt["Calendar_Toggle"] == 1)
                         {
@@ -1201,7 +1043,7 @@ namespace RetroMap
                         EntryOption("Slide: ", "Slide_Toggle", 1, 0, 1, true);
                         if (StorageInt["Slide_Toggle"] == 1)
                         {
-                            EntryOption("       Slide Speed: ", "Slide_Speed", 0, 0, 30, false);
+                            EntryOption("Slide Speed: ", "Slide_Speed", 0, 0, 30, false);
                         }
                         MenuEnd();
                         break;
@@ -1242,9 +1084,14 @@ namespace RetroMap
                         MenuEnd();
                         break;
                     case 16:
-                        MenuSetup("Font Settings");
-                        EntryText("Font: Roboto");
-                        EntryOption("Font Size: ", "Font_Size", 0, 12, 72, false);
+                        MenuSetup("Text Settings");
+                        EntryOption("Text Size: ", "Font_Size", 0, 12, 72, false);
+                        EntryOption("Text Position X: ", "Text_Position_X", 2, 0, 100, false);
+                        EntryOption("Text Position Y: ", "Text_Position_Y", 2, 0, 100, false);
+                        EntryOption("Text Alignment: ", "Text_Alignment", 2, 0, 2, false);
+                        EntryOption("Text Warp X: ", "Text_Warp_X", 2, -60, 60, false);
+                        EntryOption("Text Warp Y: ", "Text_Warp_Y", 2, -60, 60, false);
+                        EntryOption("Text Warp Z: ", "Text_Warp_Z", 2, -60, 60, false);
                         MenuEnd();
                         break;
                     default:
@@ -1328,7 +1175,6 @@ namespace RetroMap
             {
                 EntryText("Nothing here!");
             }
-            RebuildStop = true;
         }
 
         void EntryLink(string EntryString, int SectionDestination, int MenuDestination, bool Locked, bool Future)
@@ -1405,8 +1251,6 @@ namespace RetroMap
                     OptionType = 5;
                     break;
             }
-            MenuOptions[CX, CY] = true;
-            MenuOptionsSave[CX, CY] = false;
             MenuOptionsLocations.Add(CZ);
             if (MinimumIntAllowed > MaximumIntAllowed)
             {
@@ -1672,7 +1516,7 @@ namespace RetroMap
                                 }
                             }
                         }
-                        if (StorageInt["Background_Number"] > BackgroundImages.Count)
+                        if (StorageInt["Background_Number"] > BackgroundImages.Count + 1)
                         {
                             StorageInt["Background_Number"] = 1;
                         }
@@ -1701,7 +1545,7 @@ namespace RetroMap
                     {
                         List<string> VideoStorage = new List<string>();
                         int b = 0;
-                        while (MenuDisplayMode[b].Width != 1280 && MenuDisplayMode[b].Height != 720 && MenuDisplayMode.Count != b) b++;
+                        while (MenuDisplayMode[b].Width != GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width && MenuDisplayMode[b].Height != GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height && MenuDisplayMode.Count != b) b++;
                         b++;
                         VideoStorage.Add(b.ToString());
                         VideoStorage.Add(2.ToString());
@@ -1812,15 +1656,45 @@ namespace RetroMap
                         VideoStorage = ReadFromFile(RootConfig + @"\Fonts.txt");
                         int c = 0;
                         if (VideoStorage.Count > c) StorageInt["Font_Size"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Text_Position_X"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Text_Position_Y"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Text_Alignment"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Text_Warp_X"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Text_Warp_Y"] = Int32.Parse(VideoStorage[c]); c++;
+                        if (VideoStorage.Count > c) StorageInt["Text_Warp_Z"] = Int32.Parse(VideoStorage[c]); c++;
                     }
                     else
                     {
                         List<string> VideoStorage = new List<string>
                         {
-                            StorageInt["Font_Size"].ToString()
+                            StorageInt["Font_Size"].ToString(),
+                            StorageInt["Text_Position_X"].ToString(),
+                            StorageInt["Text_Position_Y"].ToString(),
+                            StorageInt["Text_Alignment"].ToString(),
+                            StorageInt["Text_Warp_X"].ToString(),
+                            StorageInt["Text_Warp_Y"].ToString(),
+                            StorageInt["Text_Warp_Z"].ToString()
                         };
                         WriteToFile(RootConfig + @"\Fonts.txt", VideoStorage);
                     }
+                    break;
+                case "Build":
+                    if (File.Exists(RootConfig + @"\Build.txt"))
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage = ReadFromFile(RootConfig + @"\Build.txt");
+                        BuildNumber = Int32.Parse(VideoStorage[0]) + 1;
+                        VideoStorage[0] = BuildNumber.ToString();
+                        WriteToFile(RootConfig + @"\Build.txt", VideoStorage);
+                    }
+                    else
+                    {
+                        List<string> VideoStorage = new List<string>();
+                        VideoStorage.Add(1.ToString());
+                        BuildNumber = 1;
+                        WriteToFile(RootConfig + @"\Build.txt", VideoStorage);
+                    }
+                    RetroMapTrademark += "-" + BuildNumber;
                     break;
             }
         }
@@ -1856,6 +1730,12 @@ namespace RetroMap
             StorageInt.Add("Directory_Emulator_Amount", 0);
             StorageInt.Add("Directory_Rom_Amount", 0);
             StorageInt.Add("Text_Selection_Icon", 6);
+            StorageInt.Add("Text_Position_X", 0);
+            StorageInt.Add("Text_Position_Y", 0);
+            StorageInt.Add("Text_Alignment", 0);
+            StorageInt.Add("Text_Warp_X", 0);
+            StorageInt.Add("Text_Warp_Y", 0);
+            StorageInt.Add("Text_Warp_Z", 0);
 
             KeyboardInput.Add("A", 0);
             KeyboardInput.Add("B", 0);
@@ -1925,6 +1805,190 @@ namespace RetroMap
             MouseInput.Add("MouseMiddleClick", 0);
             MouseInput.Add("MouseScrollUp", 0);
             MouseInput.Add("MouseScrollDown", 0);
+        }
+        void AddSelectionIcon()
+        {
+            switch (StorageInt["Text_Selection_Icon"])
+            {
+                default: TextSelectionIcon = ">>> "; break;
+                case 1: TextSelectionIcon = "> "; break;
+                case 2: TextSelectionIcon = "||| "; break;
+                case 3:
+                    switch ((int)DateTime.Now.Ticks)
+                    {
+                        default: TextSelectionIcon = (DateTime.Now.Ticks % 10000000) / (1000) + " "; break;
+                    }
+                    break;
+                case 4:
+                    switch ((DateTime.Now.Ticks % 10000000) / (2000000))
+                    {
+                        case 0: TextSelectionIcon = "|||    "; break;
+                        case 1: TextSelectionIcon = " |||   "; break;
+                        case 2: TextSelectionIcon = "  |||  "; break;
+                        case 3: TextSelectionIcon = "|  ||  "; break;
+                        case 4: TextSelectionIcon = "||  |  "; break;
+                    }
+                    break;
+                case 5:
+                    switch ((DateTime.Now.Ticks % 5000000) / (1000000))
+                    {
+                        case 0: TextSelectionIcon = "|||    "; break;
+                        case 1: TextSelectionIcon = " |||   "; break;
+                        case 2: TextSelectionIcon = "  |||  "; break;
+                        case 3: TextSelectionIcon = "|  ||  "; break;
+                        case 4: TextSelectionIcon = "||  |  "; break;
+                    }
+                    break;
+                case 6:
+                    switch ((int)Math.Floor(TimeSinceChange))
+                    {
+                        case 0: TextSelectionIcon = "|    "; break;
+                        case 1: TextSelectionIcon = "||   "; break;
+                        case 2: TextSelectionIcon = "|||  "; break;
+                        case 3: TextSelectionIcon = " ||  "; break;
+                        default: TextSelectionIcon = "  |  "; break;
+                    }
+                    break;
+                case 7:
+                    switch ((int)Math.Floor(TimeSinceChange))
+                    {
+                        case 0: TextSelectionIcon = "|  "; break;
+                        case 1: TextSelectionIcon = "||  "; break;
+                        case 2: TextSelectionIcon = "|||  "; break;
+                        case 3: TextSelectionIcon = "||||  "; break;
+                        default: TextSelectionIcon = "|||||  "; break;
+                    }
+                    break;
+                case 8:
+                    TextSelectionIcon = "|" + SectionSelection + "|" + MenuSelection + "|" + EntrySelection + "| ";
+                    break;
+            }
+        }
+        void AddTextValue(Entry CE, int i)
+        {
+            if (CE.Type == 5)
+            {
+                TextValue = "" + StorageInt[CE.Key];
+            }
+            if (CE.Type == 6)
+            {
+                string[] ToggleString = new string[2];
+                ToggleString[0] = "Off";
+                ToggleString[1] = "On";
+                TextValue = "" + ToggleString[StorageInt[CE.Key]];
+            }
+            if (CE.Type == 7)
+            {
+                if (MenuTitle == "Emulators Menu")
+                {
+                    if (StorageInt[CE.Key] < EmulatorExes.Count)
+                    {
+                        TextValue = " | " + EmulatorExes[StorageInt[CE.Key]];
+                    }
+                    else
+                    {
+                        if (EmulatorExes.Count == 0)
+                        {
+                            TextValue = " | Error: No Emulators Found";
+                        }
+                        else
+                        {
+                            TextValue = " | Error: Emulator # is too high!";
+                        }
+                    }
+                }
+                switch (MenuEntriesList[i].Key)
+                {
+                    case "Video_ScreenResolution":
+                        TextValue = "" + MenuDisplayMode[StorageInt[CE.Key]].Width + "x" + MenuDisplayMode[StorageInt[CE.Key]].Height;
+                        break;
+                    case "Video_ScreenMode":
+                        TextValue = "" + MenuWindowMode[StorageInt[CE.Key]];
+                        break;
+                    case "Background_Number":
+                        if (StorageInt[CE.Key] == 0)
+                        {
+                            TextValue = "" + "Empty Background";
+                        }
+                        else if (StorageInt[CE.Key] == 1)
+                        {
+                            TextValue = "" + "Current Desktop Background";
+                        }
+                        else
+                        {
+                            TextValue = "" + BackgroundImages[StorageInt[CE.Key] - 2];
+                        }
+                        break;
+                    case "Clock_Mode":
+                        switch (StorageInt[CE.Key])
+                        {
+                            case 0: TextValue = "" + "12 Hour Time"; break;
+                            case 1: TextValue = "" + "24 Hour Time"; break;
+                        }
+                        break;
+                    case "Clock_Position":
+                        switch (StorageInt[CE.Key])
+                        {
+                            case 0: TextValue = "" + "Line 1: Date, Time"; break;
+                            case 1: TextValue = "" + "Line 1: Time | Line 2: Date"; break;
+                            case 2: TextValue = "" + "Line 1: Date | Line 2: Time"; break;
+                        }
+                        break;
+                    case "Calendar_DayOfTheWeek":
+                        switch (StorageInt[CE.Key])
+                        {
+                            case 0: TextValue = "" + "Off"; break;
+                            case 1: TextValue = "" + "Left"; break;
+                            case 2: TextValue = "" + "Right"; break;
+                        }
+                        break;
+                    case "Calendar_Mode":
+                        switch (StorageInt[CE.Key])
+                        {
+                            case 0: TextValue = "" + "Month/Day/Year"; break;
+                            case 1: TextValue = "" + "Day/Month/Year"; break;
+                            case 2: TextValue = "" + "Year/Month/Day"; break;
+                            case 3: TextValue = "" + "Day/Month"; break;
+                            case 4: TextValue = "" + "Month/Day"; break;
+                            case 5: TextValue = "" + "Day"; break;
+                            case 6: TextValue = "" + "Year"; break;
+                        }
+                        break;
+                    case "Calendar_MonthName":
+                        switch (StorageInt[CE.Key])
+                        {
+                            case 0: TextValue = "" + "Numbers"; break;
+                            case 1: TextValue = "" + "Abbreviated"; break;
+                            case 2: TextValue = "" + "Full"; break;
+                        }
+                        break;
+                    case "Calendar_Divider":
+                        switch (StorageInt[CE.Key])
+                        {
+                            case 0: TextValue = "" + "Slashes (/)"; break;
+                            case 1: TextValue = "" + "Dashes (-)"; break;
+                            case 2: TextValue = "" + "Spaces ( )"; break;
+                        }
+                        break;
+                    case "Text_Alignment":
+                        switch (StorageInt[CE.Key])
+                        {
+                            case 0: TextValue = "" + "Left"; break;
+                            case 1: TextValue = "" + "Center"; break;
+                            case 2: TextValue = "" + "Right"; break;
+                        }
+                        break;
+                    case "Text_Position_X": TextValue = StorageInt["Text_Position_X"] + "%"; break;
+                    case "Text_Position_Y": TextValue = StorageInt["Text_Position_Y"] + "%"; break;
+                    case "Text_Warp_X": TextValue = StorageInt["Text_Warp_X"] + " Degrees"; break;
+                    case "Text_Warp_Y": TextValue = StorageInt["Text_Warp_Y"] + " Degrees"; break;
+                    case "Text_Warp_Z": TextValue = StorageInt["Text_Warp_Z"] + " Degrees"; break;
+                }
+            }
+            if (CE.Type == 8 || CE.Type == 11)
+            {
+                TextValue = "" + StorageString[CE.Key];
+            }
         }
 
         [DllImport("user32")]
@@ -2022,6 +2086,12 @@ namespace RetroMap
                     return num + "th";
             }
 
+        }
+        public static string Reverse(string s)
+        {
+            char[] charArray = s.ToCharArray();
+            Array.Reverse(charArray);
+            return new string(charArray);
         }
 
         public class Entry
